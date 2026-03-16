@@ -1,44 +1,73 @@
+# ===========================================
+# MedLinkID Project - Complete .gitignore
+# ===========================================
+
+# ===========================================
 # Dependencies
+# ===========================================
 node_modules/
 npm-debug.log*
 yarn-error.log
 yarn-debug.log
+yarn.lock
+package-lock.json
 .pnp
 .pnp.js
 
+# ===========================================
 # Testing
+# ===========================================
 coverage/
+.nyc_output/
 
-# Next.js
+# ===========================================
+# Next.js Frontend
+# ===========================================
 .next/
 out/
 build/
 medlink-patient-app/.next/
 medlink-patient-app/out/
+medlink-patient-app/build/
 
+# ===========================================
 # Node.js Backend
+# ===========================================
 dist/
 medlink-backend/dist/
 medlink-backend/build/
+*.tsbuildinfo
 
-# Environment Variables
+# ===========================================
+# Environment Variables (CRITICAL - Never commit)
+# ===========================================
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.staging
 .env.example
 *.secret
 *.pem
 medlink-backend/.env
+medlink-patient-app/.env.local
 
-# Database
+# ===========================================
+# Database Files
+# ===========================================
 *.db
 *.db-journal
+*.sqlite
+*.sqlite3
 prisma/*.db
 prisma/*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
 
+# ===========================================
 # IDEs and Editors
+# ===========================================
 .vscode/
 .idea/
 *.suo
@@ -46,26 +75,69 @@ prisma/*.db-journal
 *.njsproj
 *.sln
 *.sw?
+*.sublime-*
 
+# ===========================================
 # OS Files
+# ===========================================
 .DS_Store
 Thumbs.db
 desktop.ini
+$RECYCLE.BIN/
 
+# ===========================================
 # Logs
+# ===========================================
 logs/
 *.log
+npm-debug.log*
+yarn-error.log
 
-# Firebase
-medlink-notification-firebase-adminsdk-fbsvc-4659b1ab2c.json
+# ===========================================
+# Firebase / Notification Keys
+# ===========================================
+medlink-notification-firebase-adminsdk-*.json
 firebase-adminsdk*.json
+*firebase*.json
+!firebase.example.json
 
-# Build artifacts
-*.tsbuildinfo
-.medlink-patient-app
-
-# Debug files
+# ===========================================
+# Temporary/Debug Files
+# ===========================================
 nul
+*.temp
+*.tmp
+.tmp/
+temp/
+debug/
 
+# ===========================================
+# Documentation (Optional - keep if needed)
+# ===========================================
 patient_design_pattern.md
 PRD_Patient_App.md
+README.md
+*.md
+
+# ===========================================
+# Prisma
+# ===========================================
+prisma/migrations/
+
+# ===========================================
+# TypeScript Cache
+# ===========================================
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ===========================================
+# Vercel / Deployment
+# ===========================================
+.vercel
+.output
+
+# ===========================================
+# Misc
+# ===========================================
+.cache/
+.parcel-cache/

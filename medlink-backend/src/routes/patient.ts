@@ -4,6 +4,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { PrismaClient } from '@prisma/client';
 import { emitToPatient } from '../services/socket';
 import { createAuditLog } from '../services/auditLog';
+import { sendWelcomeEmail } from '../services/email';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -171,6 +172,91 @@ router.get('/audit-logs', authMiddleware, async (req: AuthRequest, res: Response
   } catch (error) {
     console.error('Error fetching audit logs:', error);
     res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+router.post('/send-welcome-email', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const patientId = req.patientId!;
+    
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      select: {
+        name: true,
+        email: true,
+        patientId: true
+      }
+    });
+
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    if (!patient.email) {
+      return res.status(400).json({ error: 'Patient email not found' });
+    }
+
+    const emailSent = await sendWelcomeEmail(patient.email, patient.name, patient.patientId);
+
+    if (emailSent) {
+      await createAuditLog({
+        patientId,
+        action: 'WELCOME_EMAIL_SENT',
+        description: `Welcome email sent to ${patient.email}`
+      });
+      
+      res.json({ message: 'Welcome email sent successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to send welcome email' });
+    }
+  } catch (error) {
+    console.error('Error sending welcome email:', error);
+    res.status(500).json({ error: 'Failed to send welcome email' });
+  }
+});
+
+router.post('/send-welcome-email-by-id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { patientId: patientIdInput } = req.body;
+    
+    if (!patientIdInput) {
+      return res.status(400).json({ error: 'Patient ID is required' });
+    }
+
+    const patient = await prisma.patient.findUnique({
+      where: { patientId: patientIdInput.toUpperCase() },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        patientId: true
+      }
+    });
+
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    if (!patient.email) {
+      return res.status(400).json({ error: 'Patient email not found' });
+    }
+
+    const emailSent = await sendWelcomeEmail(patient.email, patient.name, patient.patientId);
+
+    if (emailSent) {
+      await createAuditLog({
+        patientId: patient.id,
+        action: 'WELCOME_EMAIL_SENT',
+        description: `Welcome email sent to ${patient.email}`
+      });
+      
+      res.json({ message: 'Welcome email sent successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to send welcome email' });
+    }
+  } catch (error) {
+    console.error('Error sending welcome email:', error);
+    res.status(500).json({ error: 'Failed to send welcome email' });
   }
 });
 

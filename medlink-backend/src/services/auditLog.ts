@@ -13,7 +13,8 @@ export type AuditAction =
   | 'HOSPITAL_BLOCKED'
   | 'HOSPITAL_UNBLOCKED'
   | 'OTP_VERIFIED'
-  | 'NOTIFICATION_SENT';
+  | 'NOTIFICATION_SENT'
+  | 'WELCOME_EMAIL_SENT';
 
 export interface AuditLogData {
   patientId?: string;

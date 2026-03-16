@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { emitToPatient } from '../services/socket';
 import { createAuditLog } from '../services/auditLog';
 import { sendOTP } from '../services/sms';
+import { sendWelcomeEmail } from '../services/email';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -85,6 +86,8 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
       }
     });
 
+    console.log(`\n🔐 OTP for ${loginIdentifier} (${patient.name}): ${otp}\n`);
+
     const normalizedPhone = patient.phone.replace(/\s/g, '');
     await sendOTP(normalizedPhone, otp);
 
@@ -156,6 +159,8 @@ router.post('/verify-otp', async (req: AuthRequest, res: Response) => {
       action: 'OTP_VERIFIED',
       description: 'User logged in successfully'
     });
+
+    await sendWelcomeEmail(patient.email, patient.name, patient.patientId);
 
     res.json({ 
       token, 
@@ -261,6 +266,44 @@ router.post('/refresh-token', authMiddleware, async (req: AuthRequest, res: Resp
   } catch (error) {
     console.error('Error refreshing token:', error);
     res.status(500).json({ error: 'Failed to refresh token' });
+  }
+});
+
+router.get('/debug-otp/:patientId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { patientId } = req.params;
+    
+    const patient = await prisma.patient.findUnique({
+      where: { patientId: patientId.toUpperCase() }
+    });
+
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    const latestOTP = await prisma.oTP.findFirst({
+      where: { patientId: patient.id },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!latestOTP) {
+      return res.json({ message: 'No OTP found for this patient' });
+    }
+
+    const isValid = latestOTP.expiresAt > new Date() && !latestOTP.used;
+
+    res.json({
+      patientId: patient.patientId,
+      name: patient.name,
+      phone: patient.phone,
+      otp: latestOTP.otp,
+      expiresAt: latestOTP.expiresAt,
+      used: latestOTP.used,
+      isValid
+    });
+  } catch (error) {
+    console.error('Error fetching debug OTP:', error);
+    res.status(500).json({ error: 'Failed to fetch OTP' });
   }
 });
 

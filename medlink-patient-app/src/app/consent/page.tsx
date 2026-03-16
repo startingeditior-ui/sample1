@@ -29,6 +29,7 @@ export default function ConsentPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const fetchPendingRequests = useCallback(async () => {
     try {
@@ -56,7 +57,12 @@ export default function ConsentPage() {
     },
   });
 
-  const handleApprove = async () => {
+  const handleApprove = () => {
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmApprove = async () => {
+    setShowConfirmDialog(false);
     setError('');
     setIsSendingOtp(true);
     try {
@@ -70,6 +76,10 @@ export default function ConsentPage() {
     }
   };
 
+  const handleCancelConfirm = () => {
+    setShowConfirmDialog(false);
+  };
+
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -77,7 +87,7 @@ export default function ConsentPage() {
 
     try {
       await consentAPI.approveConsent(selectedRequest!.id, otp, duration);
-      alert('Access granted successfully!');
+      alert(`Access granted successfully to ${selectedRequest!.doctorName} from ${selectedRequest!.hospitalName}!`);
       setOtp('');
       setStep('list');
       setSelectedRequest(null);
@@ -295,7 +305,7 @@ export default function ConsentPage() {
               <div className="text-center mt-3">
                 <button
                   type="button"
-                  onClick={handleApprove}
+                  onClick={() => { setOtp(''); setShowConfirmDialog(true); }}
                   className="text-sm text-primary hover:underline"
                   disabled={isSendingOtp}
                 >
@@ -304,6 +314,61 @@ export default function ConsentPage() {
               </div>
             )}
           </Card>
+        </motion.div>
+      )}
+
+      {showConfirmDialog && selectedRequest && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            className="bg-white rounded-2xl p-6 max-w-md w-full"
+          >
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-8 h-8 text-amber-600" />
+              </div>
+              <h3 className="text-xl font-bold text-text-primary">Confirm Access Grant</h3>
+            </div>
+
+            <div className="bg-surface-low rounded-xl p-4 mb-6">
+              <p className="text-sm text-text-secondary mb-3">You are about to grant access to:</p>
+              <p className="font-semibold text-text-primary text-lg">{selectedRequest.doctorName}</p>
+              <p className="text-text-secondary">{selectedRequest.hospitalName}</p>
+              <p className="text-sm text-text-outline mt-1">{selectedRequest.specialization}</p>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm font-medium text-text-primary mb-2">Records to be shared:</p>
+              <div className="flex flex-wrap gap-2">
+                {selectedRequest.recordsRequested.map((record, idx) => (
+                  <span key={idx} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
+                    {record}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+              <p className="text-sm text-amber-800">
+                <strong>Please verify:</strong> Make sure this is a legitimate request from {selectedRequest.hospitalName}. 
+                Do not share your OTP with anyone.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button variant="outlined" className="flex-1" onClick={handleCancelConfirm}>
+                Cancel
+              </Button>
+              <Button variant="filled" className="flex-1" onClick={handleConfirmApprove}>
+                Confirm & Continue
+              </Button>
+            </div>
+          </motion.div>
         </motion.div>
       )}
     </div>

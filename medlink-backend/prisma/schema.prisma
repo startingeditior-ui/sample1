@@ -12,7 +12,7 @@ model Patient {
   patientId       String   @unique
   name            String
   phone           String   @unique
-  email           String?
+  email           String   @unique
   password        String
   bloodGroup      String?
   allergies       String   @default("[]")

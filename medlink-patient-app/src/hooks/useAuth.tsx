@@ -69,14 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithPatientId = async (patientId: string) => {
     setIsLoading(true);
+    console.log('Login with Patient ID:', patientId);
     try {
-      await authAPI.loginWithPatientId(patientId);
+      const response = await authAPI.loginWithPatientId(patientId);
+      console.log('Login response:', response.data);
       localStorage.setItem('loginMethod', 'patientId');
       localStorage.setItem('loginIdentifier', patientId);
       setIsLoading(false);
     } catch (error: any) {
+      console.error('Login error:', error);
       setIsLoading(false);
-      throw new Error(error.response?.data?.error || 'Failed to send OTP');
+      throw new Error(error.response?.data?.error || error.message || 'Failed to send OTP');
     }
   };
 

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Phone, User, ArrowRight, AlertCircle } from 'lucide-react';
+import { Phone, User, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,8 @@ export default function LoginPage() {
   const [showOTP, setShowOTP] = useState(false);
   const [error, setError] = useState('');
   const [inputError, setInputError] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const validatePhone = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '');
@@ -26,7 +28,10 @@ export default function LoginPage() {
   };
 
   const validatePatientId = (id: string) => {
-    return id.trim().length > 0;
+    const trimmed = id.trim().toUpperCase();
+    // MLPR-YYYYXXXX format (e.g., MLPR-20260001)
+    const pattern = /^MLPR-\d{8}$/;
+    return pattern.test(trimmed);
   };
 
   const formatPhone = (value: string) => {
@@ -89,7 +94,11 @@ export default function LoginPage() {
       }
       
       await verifyOTP(identifier, otp, loginMethod);
-      router.push('/');
+      setIsSuccess(true);
+      setSuccessMessage('You have successfully logged in to the patient portal!');
+      setTimeout(() => {
+        router.push('/');
+      }, 2000);
     } catch (err: any) {
       setError(err.message || 'Invalid OTP. Please try again.');
     }
@@ -127,6 +136,30 @@ export default function LoginPage() {
           transition={{ delay: 0.1 }}
           className="w-full max-w-md"
         >
+          <button
+            onClick={() => router.push('/')}
+            className="flex items-center gap-2 text-text-secondary hover:text-text-primary mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">Back to Home</span>
+          </button>
+
+          {isSuccess && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-green-100 border border-green-400 text-green-700 px-4 py-6 rounded-xl text-center mb-6"
+            >
+              <div className="flex justify-center mb-2">
+                <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="font-semibold text-lg">{successMessage}</p>
+              <p className="text-sm mt-1">Redirecting to dashboard...</p>
+            </motion.div>
+          )}
+
           {!showOTP ? (
             <form onSubmit={handleSendOTP} className="space-y-6">
               <div className="md-card">
@@ -201,7 +234,7 @@ export default function LoginPage() {
               </Button>
               
               <p className="text-center text-text-secondary text-sm">
-                Test: +91 98765 43210 or MLPR-20250001
+                Test: +91 98765 43210 or MLPR-20260001
               </p>
             </form>
           ) : (

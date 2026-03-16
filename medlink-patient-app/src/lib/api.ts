@@ -36,8 +36,14 @@ apiClient.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: (phone: string) => apiClient.post('/auth/login', { phone }),
-  loginWithPatientId: (patientId: string) => apiClient.post('/auth/login', { patientId }),
+  login: (phone: string) => {
+    console.log('API: Sending OTP to phone:', phone);
+    return apiClient.post('/auth/login', { phone });
+  },
+  loginWithPatientId: (patientId: string) => {
+    console.log('API: Sending OTP for patientId:', patientId);
+    return apiClient.post('/auth/login', { patientId });
+  },
   verifyOTP: (identifier: string, otp: string, method: 'phone' | 'patientId') => {
     if (method === 'phone') {
       return apiClient.post('/auth/verify-otp', { phone: identifier, otp });
