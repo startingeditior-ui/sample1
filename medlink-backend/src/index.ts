@@ -10,6 +10,9 @@ import patientRoutes from './routes/patient';
 import accessRoutes from './routes/access';
 import consentRoutes from './routes/consent';
 import notificationRoutes from './routes/notifications';
+import recordsRoutes from './routes/records';
+import doctorsRoutes from './routes/doctors';
+import hospitalsRoutes from './routes/hospitals';
 
 config();
 
@@ -31,6 +34,9 @@ app.use('/api/patient', patientRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/consent', consentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/patient/records', recordsRoutes);
+app.use('/api/doctors', doctorsRoutes);
+app.use('/api/hospitals', hospitalsRoutes);
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);

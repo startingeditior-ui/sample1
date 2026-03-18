@@ -14,7 +14,10 @@ export type AuditAction =
   | 'HOSPITAL_UNBLOCKED'
   | 'OTP_VERIFIED'
   | 'NOTIFICATION_SENT'
-  | 'WELCOME_EMAIL_SENT';
+  | 'WELCOME_EMAIL_SENT'
+  | 'RECORD_ADDED'
+  | 'RECORD_UPDATED'
+  | 'RECORD_DELETED';
 
 export interface AuditLogData {
   patientId?: string;
@@ -34,7 +37,7 @@ export const createAuditLog = async (data: AuditLogData) => {
         hospitalId: data.hospitalId,
         action: data.action,
         description: data.description,
-        metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+        metadata: data.metadata ?? null,   // Json field — no JSON.stringify needed
         ipAddress: null,
         userAgent: null
       }
@@ -51,7 +54,7 @@ export const getAuditLogs = async (patientId?: string, limit = 50) => {
     orderBy: { createdAt: 'desc' },
     take: limit,
     include: {
-      patient: { select: { name: true, patientId: true } },
+      patient: { select: { name: true, patientCode: true } },
       doctor: { select: { name: true } },
       hospital: { select: { name: true } }
     }

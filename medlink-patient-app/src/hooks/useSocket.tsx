@@ -16,6 +16,9 @@ interface SocketContextType {
   onHospitalBlocked: (callback: (data: any) => void) => void;
   onHospitalUnblocked: (callback: (data: any) => void) => void;
   onProfileUpdated: (callback: (data: any) => void) => void;
+  onRecordAdded: (callback: (data: any) => void) => void;
+  onRecordUpdated: (callback: (data: any) => void) => void;
+  onRecordDeleted: (callback: (data: any) => void) => void;
   removeAllListeners: () => void;
 }
 
@@ -92,7 +95,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         newSocket.disconnect();
       }
     };
-  }, [SOCKET_URL]);
+  }, []);
 
   const joinPatientRoom = useCallback((patientId: string) => {
     if (socket) {
@@ -154,6 +157,24 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   }, [socket]);
 
+  const onRecordAdded = useCallback((callback: (data: any) => void) => {
+    if (socket) {
+      socket.on('record:added', callback);
+    }
+  }, [socket]);
+
+  const onRecordUpdated = useCallback((callback: (data: any) => void) => {
+    if (socket) {
+      socket.on('record:updated', callback);
+    }
+  }, [socket]);
+
+  const onRecordDeleted = useCallback((callback: (data: any) => void) => {
+    if (socket) {
+      socket.on('record:deleted', callback);
+    }
+  }, [socket]);
+
   const removeAllListeners = useCallback(() => {
     if (socket) {
       socket.removeAllListeners();
@@ -175,6 +196,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         onHospitalBlocked,
         onHospitalUnblocked,
         onProfileUpdated,
+        onRecordAdded,
+        onRecordUpdated,
+        onRecordDeleted,
         removeAllListeners,
       }}
     >

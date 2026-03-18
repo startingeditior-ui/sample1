@@ -1,17 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Phone, User, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
+import Image from 'next/image';
 
 type LoginMethod = 'phone' | 'patientId';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { loginWithPhone, loginWithPatientId, verifyOTP, isLoading } = useAuth();
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone');
   const [inputValue, setInputValue] = useState('');
@@ -21,6 +23,16 @@ export default function LoginPage() {
   const [inputError, setInputError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [sessionMessage, setSessionMessage] = useState('');
+
+  useEffect(() => {
+    const reason = searchParams.get('reason');
+    if (reason === 'session_expired') {
+      setSessionMessage('Your session has expired. Please login again.');
+    } else if (reason === 'session_invalid') {
+      setSessionMessage('Your session is invalid. Please login again.');
+    }
+  }, [searchParams]);
 
   const validatePhone = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '');
@@ -125,7 +137,7 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <img src="/ML.png" alt="MedLinkID" className="w-16 h-16 lg:w-20 lg:h-20 mx-auto mb-4" />
+          <Image src="/ML.png" alt="MedLinkID" width={64} height={64} className="w-16 h-16 lg:w-20 lg:h-20 mx-auto mb-4" />
           <h1 className="text-2xl lg:text-3xl font-bold text-text-primary">MedLinkID</h1>
           <p className="text-text-secondary mt-2">Your Digital Medical Record</p>
         </motion.div>
@@ -220,6 +232,13 @@ export default function LoginPage() {
                   </div>
                 )}
                 
+                {sessionMessage && (
+                  <div className="flex items-center gap-2 mt-2 text-yellow-600 text-sm bg-yellow-50 px-3 py-2 rounded-lg">
+                    <AlertCircle className="w-4 h-4" />
+                    {sessionMessage}
+                  </div>
+                )}
+                
                 {error && (
                   <div className="flex items-center gap-2 mt-2 text-error text-sm">
                     <AlertCircle className="w-4 h-4" />
@@ -296,5 +315,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-surface-lowest flex items-center justify-center">
+        <div className="animate-pulse">Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

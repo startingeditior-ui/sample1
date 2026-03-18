@@ -19,7 +19,7 @@ router.get('/active', authMiddleware, async (req: AuthRequest, res: Response) =>
         accessExpiryTime: { gt: new Date() }
       },
       include: {
-        doctor: true,
+        doctor: { include: { specialization: true } },
         hospital: true
       },
       orderBy: { accessStartTime: 'desc' }
@@ -32,7 +32,7 @@ router.get('/active', authMiddleware, async (req: AuthRequest, res: Response) =>
       hospitalId: record.hospitalId,
       doctorName: record.doctor.name,
       hospitalName: record.hospital.name,
-      specialization: record.doctor.specialization,
+      specialization: record.doctor.specialization?.name,
       accessStartTime: record.accessStartTime.toISOString(),
       accessExpiryTime: record.accessExpiryTime.toISOString(),
       recordsViewed: JSON.parse(record.recordsViewed),
@@ -53,7 +53,7 @@ router.get('/logs', authMiddleware, async (req: AuthRequest, res: Response) => {
     const accessRecords = await prisma.accessRecord.findMany({
       where: { patientId },
       include: {
-        doctor: true,
+        doctor: { include: { specialization: true } },
         hospital: true
       },
       orderBy: { accessStartTime: 'desc' }
@@ -66,7 +66,7 @@ router.get('/logs', authMiddleware, async (req: AuthRequest, res: Response) => {
       hospitalId: record.hospitalId,
       doctorName: record.doctor.name,
       hospitalName: record.hospital.name,
-      specialization: record.doctor.specialization,
+      specialization: record.doctor.specialization?.name,
       accessStartTime: record.accessStartTime.toISOString(),
       accessExpiryTime: record.accessExpiryTime.toISOString(),
       recordsViewed: JSON.parse(record.recordsViewed),
@@ -87,7 +87,7 @@ router.post('/:accessId/revoke', authMiddleware, async (req: AuthRequest, res: R
 
     const accessRecord = await prisma.accessRecord.findUnique({
       where: { id: accessId },
-      include: { doctor: true, hospital: true }
+      include: { doctor: { include: { specialization: true } }, hospital: true }
     });
 
     if (!accessRecord) {
@@ -150,7 +150,7 @@ router.post('/:accessId/extend', [
 
     const accessRecord = await prisma.accessRecord.findUnique({
       where: { id: accessId },
-      include: { doctor: true, hospital: true }
+      include: { doctor: { include: { specialization: true } }, hospital: true }
     });
 
     if (!accessRecord) {

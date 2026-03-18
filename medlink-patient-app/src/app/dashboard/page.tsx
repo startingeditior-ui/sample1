@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNotificationListener } from '@/hooks/useNotificationListener';
 import { consentAPI, accessAPI, notificationAPI } from '@/lib/api';
 import Link from 'next/link';
+import Image from 'next/image';
 import QRCode from 'qrcode';
 
 export default function DashboardPage() {
@@ -103,8 +104,12 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold mt-1">{patient.name}</h1>
             <p className="text-emerald-100 text-sm mt-1 font-mono">{patient.patientId}</p>
           </div>
-          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-            <User className="w-6 h-6" />
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center overflow-hidden">
+            {patient.profilePhoto ? (
+              <Image src={patient.profilePhoto} alt="Profile" width={48} height={48} className="w-full h-full object-cover" unoptimized />
+            ) : (
+              <User className="w-6 h-6" />
+            )}
           </div>
         </div>
         
@@ -146,7 +151,7 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row items-center gap-6">
           <div className="bg-white p-3 rounded-xl border-2 border-emerald-100">
             {qrCodeUrl ? (
-              <img src={qrCodeUrl} alt="QR Code" className="w-32 h-32" />
+              <Image src={qrCodeUrl} alt="QR Code" width={128} height={128} className="w-32 h-32" unoptimized />
             ) : (
               <div className="w-32 h-32 bg-gray-100 flex items-center justify-center">
                 <QrCode className="w-8 h-8 text-gray-400" />

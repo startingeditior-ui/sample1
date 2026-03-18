@@ -9,11 +9,20 @@ interface AuthContextType {
   patient: Patient | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  insuranceData: InsuranceData | null;
   loginWithPhone: (phone: string) => Promise<void>;
   loginWithPatientId: (patientId: string) => Promise<void>;
   verifyOTP: (identifier: string, otp: string, method: 'phone' | 'patientId') => Promise<void>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  saveInsuranceData: (data: InsuranceData) => void;
+}
+
+interface InsuranceData {
+  insuranceProvider?: string;
+  insuranceCustomerId?: string;
+  insuranceType?: string;
+  insuranceSupportNumber?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,7 +30,30 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [insuranceData, setInsuranceData] = useState<InsuranceData | null>(null);
   const { joinPatientRoom, leavePatientRoom } = useSocket();
+
+  const INSURANCE_STORAGE_KEY = 'patientInsuranceData';
+
+  const loadInsuranceData = useCallback(() => {
+    try {
+      const stored = localStorage.getItem(INSURANCE_STORAGE_KEY);
+      if (stored) {
+        setInsuranceData(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Failed to load insurance data:', error);
+    }
+  }, []);
+
+  const saveInsuranceData = useCallback((data: InsuranceData) => {
+    try {
+      localStorage.setItem(INSURANCE_STORAGE_KEY, JSON.stringify(data));
+      setInsuranceData(data);
+    } catch (error) {
+      console.error('Failed to save insurance data:', error);
+    }
+  }, []);
 
   const fetchProfile = useCallback(async (): Promise<Patient | null> => {
     try {
@@ -52,7 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initializeAuth();
-  }, [fetchProfile, joinPatientRoom]);
+    loadInsuranceData();
+  }, [fetchProfile, joinPatientRoom, loadInsuranceData]);
 
   const loginWithPhone = async (phone: string) => {
     setIsLoading(true);
@@ -137,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ patient, isAuthenticated: !!patient, isLoading, loginWithPhone, loginWithPatientId, verifyOTP, logout, refreshProfile }}>
+    <AuthContext.Provider value={{ patient, isAuthenticated: !!patient, isLoading, insuranceData, loginWithPhone, loginWithPatientId, verifyOTP, logout, refreshProfile, saveInsuranceData }}>
       {children}
     </AuthContext.Provider>
   );

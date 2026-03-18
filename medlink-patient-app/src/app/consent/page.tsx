@@ -69,7 +69,7 @@ export default function ConsentPage() {
       await consentAPI.sendOTP();
       setOtpSent(true);
       setStep('otp');
-    } catch (err) {
+    } catch {
       setError('Failed to send OTP. Please try again.');
     } finally {
       setIsSendingOtp(false);

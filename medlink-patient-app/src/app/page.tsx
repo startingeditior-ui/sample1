@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function LandingPage() {
@@ -32,7 +33,7 @@ export default function LandingPage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-outline-variant">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/ML.png" alt="MedLinkID" className="w-10 h-10" />
+            <Image src="/ML.png" alt="MedLinkID" width={40} height={40} className="w-10 h-10" />
             <span className="text-xl font-bold text-text-primary">MedLinkID</span>
           </div>
           <div className="flex items-center gap-3">
@@ -159,7 +160,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <img src="/ML.png" alt="MedLinkID" className="w-10 h-10" />
+            <Image src="/ML.png" alt="MedLinkID" width={40} height={40} className="w-10 h-10" />
                 <span className="text-xl font-bold text-text-primary">MedLinkID</span>
               </div>
               <p className="text-text-secondary text-sm">

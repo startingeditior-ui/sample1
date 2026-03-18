@@ -9,7 +9,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
   const token = req.headers.authorization?.split(' ')[1];
   
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    return res.status(401).json({ error: 'No token provided', code: 'NO_TOKEN' });
   }
 
   try {
@@ -17,6 +17,9 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     req.patientId = decoded.patientId;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: 'Token has expired', code: 'TOKEN_EXPIRED' });
+    }
+    return res.status(401).json({ error: 'Invalid token', code: 'INVALID_TOKEN' });
   }
 };

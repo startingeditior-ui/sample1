@@ -17,19 +17,30 @@ router.get('/profile', authMiddleware, async (req: AuthRequest, res: Response) =
       where: { id: patientId },
       select: {
         id: true,
-        patientId: true,
+        patientCode: true,
         name: true,
-        phone: true,
-        email: true,
         bloodGroup: true,
         allergies: true,
         chronicDiseases: true,
         emergencyContact: true,
-        dateOfBirth: true,
+        guardianName: true,
+        guardianMobile: true,
+        guardianLocation: true,
+        dob: true,
         gender: true,
         address: true,
-        profilePhoto: true,
-        createdAt: true
+        photoUrl: true,
+        insuranceProvider: true,
+        insuranceCustomerId: true,
+        insuranceType: true,
+        insuranceSupportNumber: true,
+        createdAt: true,
+        user: {
+          select: {
+            phone: true,
+            email: true
+          }
+        }
       }
     });
 
@@ -40,9 +51,9 @@ router.get('/profile', authMiddleware, async (req: AuthRequest, res: Response) =
     res.json({ 
       patient: {
         ...patient,
-        allergies: JSON.parse(patient.allergies || '[]'),
-        chronicDiseases: JSON.parse(patient.chronicDiseases || '[]'),
-        dateOfBirth: patient.dateOfBirth?.toISOString().split('T')[0]
+        phone: patient.user?.phone,
+        email: patient.user?.email,
+        dob: patient.dob?.toISOString().split('T')[0]
       }
     });
   } catch (error) {
@@ -54,12 +65,18 @@ router.get('/profile', authMiddleware, async (req: AuthRequest, res: Response) =
 router.put('/profile', [
   authMiddleware,
   body('name').optional().isString(),
-  body('email').optional().isEmail(),
   body('bloodGroup').optional().isString(),
   body('allergies').optional().isArray(),
   body('chronicDiseases').optional().isArray(),
   body('emergencyContact').optional().isString(),
-  body('address').optional().isString()
+  body('guardianName').optional().isString(),
+  body('guardianMobile').optional().isString(),
+  body('guardianLocation').optional().isString(),
+  body('address').optional().isString(),
+  body('insuranceProvider').optional().isString(),
+  body('insuranceCustomerId').optional().isString(),
+  body('insuranceType').optional().isString(),
+  body('insuranceSupportNumber').optional().isString()
 ], async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -70,14 +87,8 @@ router.put('/profile', [
     const patientId = req.patientId!;
     const updates = req.body;
 
+    // allergies and chronicDiseases are now native String[] — no JSON.stringify needed
     const updateData: any = { ...updates };
-    
-    if (updates.allergies) {
-      updateData.allergies = JSON.stringify(updates.allergies);
-    }
-    if (updates.chronicDiseases) {
-      updateData.chronicDiseases = JSON.stringify(updates.chronicDiseases);
-    }
 
     const patient = await prisma.patient.update({
       where: { id: patientId },
@@ -86,9 +97,7 @@ router.put('/profile', [
 
     emitToPatient(patientId, 'profile:updated', {
       patient: {
-        ...patient,
-        allergies: JSON.parse(patient.allergies || '[]'),
-        chronicDiseases: JSON.parse(patient.chronicDiseases || '[]')
+        ...patient
       }
     });
 
@@ -100,11 +109,7 @@ router.put('/profile', [
     });
 
     res.json({ 
-      patient: {
-        ...patient,
-        allergies: JSON.parse(patient.allergies || '[]'),
-        chronicDiseases: JSON.parse(patient.chronicDiseases || '[]')
-      }, 
+      patient,
       message: 'Profile updated successfully' 
     });
   } catch (error) {
@@ -133,8 +138,8 @@ router.get('/emergency-data', authMiddleware, async (req: AuthRequest, res: Resp
 
     res.json({
       bloodGroup: patient.bloodGroup,
-      allergies: JSON.parse(patient.allergies || '[]'),
-      chronicDiseases: JSON.parse(patient.chronicDiseases || '[]'),
+      allergies: patient.allergies,           // already String[]
+      chronicDiseases: patient.chronicDiseases, // already String[]
       emergencyContact: patient.emergencyContact
     });
   } catch (error) {
@@ -164,7 +169,7 @@ router.get('/audit-logs', authMiddleware, async (req: AuthRequest, res: Response
       description: log.description,
       doctorName: log.doctor?.name,
       hospitalName: log.hospital?.name,
-      metadata: log.metadata ? JSON.parse(log.metadata) : null,
+      metadata: log.metadata,   // already parsed Json — no JSON.parse needed
       createdAt: log.createdAt.toISOString()
     }));
 
@@ -183,8 +188,8 @@ router.post('/send-welcome-email', authMiddleware, async (req: AuthRequest, res:
       where: { id: patientId },
       select: {
         name: true,
-        email: true,
-        patientId: true
+        patientCode: true,
+        user: { select: { email: true } }
       }
     });
 
@@ -192,17 +197,17 @@ router.post('/send-welcome-email', authMiddleware, async (req: AuthRequest, res:
       return res.status(404).json({ error: 'Patient not found' });
     }
 
-    if (!patient.email) {
+    if (!patient.user?.email) {
       return res.status(400).json({ error: 'Patient email not found' });
     }
 
-    const emailSent = await sendWelcomeEmail(patient.email, patient.name, patient.patientId);
+    const emailSent = await sendWelcomeEmail(patient.user.email, patient.name, patient.patientCode);
 
     if (emailSent) {
       await createAuditLog({
         patientId,
         action: 'WELCOME_EMAIL_SENT',
-        description: `Welcome email sent to ${patient.email}`
+        description: `Welcome email sent to ${patient.user.email}`
       });
       
       res.json({ message: 'Welcome email sent successfully' });
@@ -217,19 +222,19 @@ router.post('/send-welcome-email', authMiddleware, async (req: AuthRequest, res:
 
 router.post('/send-welcome-email-by-id', async (req: AuthRequest, res: Response) => {
   try {
-    const { patientId: patientIdInput } = req.body;
+    const { patientId: patientCodeInput } = req.body;
     
-    if (!patientIdInput) {
+    if (!patientCodeInput) {
       return res.status(400).json({ error: 'Patient ID is required' });
     }
 
     const patient = await prisma.patient.findUnique({
-      where: { patientId: patientIdInput.toUpperCase() },
+      where: { patientCode: patientCodeInput.toUpperCase() },
       select: {
         id: true,
         name: true,
-        email: true,
-        patientId: true
+        patientCode: true,
+        user: { select: { email: true } }
       }
     });
 
@@ -237,17 +242,17 @@ router.post('/send-welcome-email-by-id', async (req: AuthRequest, res: Response)
       return res.status(404).json({ error: 'Patient not found' });
     }
 
-    if (!patient.email) {
+    if (!patient.user?.email) {
       return res.status(400).json({ error: 'Patient email not found' });
     }
 
-    const emailSent = await sendWelcomeEmail(patient.email, patient.name, patient.patientId);
+    const emailSent = await sendWelcomeEmail(patient.user.email, patient.name, patient.patientCode);
 
     if (emailSent) {
       await createAuditLog({
         patientId: patient.id,
         action: 'WELCOME_EMAIL_SENT',
-        description: `Welcome email sent to ${patient.email}`
+        description: `Welcome email sent to ${patient.user.email}`
       });
       
       res.json({ message: 'Welcome email sent successfully' });

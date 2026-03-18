@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,8 +15,7 @@ import {
   Menu,
   X,
   FileText,
-  LogOut,
-  Heart
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -106,7 +106,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
           
           <Link href="/dashboard" className="flex items-center gap-2">
-            <img src="/ML.png" alt="MedLinkID" className="w-8 h-8" />
+            <Image src="/ML.png" alt="MedLinkID" width={32} height={32} className="w-8 h-8" />
             <span className="font-bold text-gray-800">MedLinkID</span>
           </Link>
           
@@ -121,7 +121,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col flex-1 min-h-0 bg-white border-r border-gray-200">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 h-16 border-b border-gray-200">
-            <img src="/ML.png" alt="MedLinkID" className="w-9 h-9" />
+            <Image src="/ML.png" alt="MedLinkID" width={36} height={36} className="w-9 h-9" />
             <span className="text-lg font-bold text-gray-800">MedLinkID</span>
           </div>
           
@@ -172,7 +172,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <div className="flex items-center justify-between px-4 h-14 border-b border-gray-200">
                 <div className="flex items-center gap-2">
-                  <img src="/ML.png" alt="MedLinkID" className="w-8 h-8" />
+                  <Image src="/ML.png" alt="MedLinkID" width={32} height={32} className="w-8 h-8" />
                   <span className="font-bold text-gray-800">MedLinkID</span>
                 </div>
                 <button 

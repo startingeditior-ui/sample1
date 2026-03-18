@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { body, validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { PrismaClient } from '@prisma/client';
 import { emitToPatient, emitToHospital } from '../services/socket';
@@ -21,7 +22,11 @@ router.get('/pending', authMiddleware, async (req: AuthRequest, res: Response) =
         status: 'PENDING'
       },
       include: {
-        doctor: true,
+        doctor: {
+          include: {
+            specialization: true
+          }
+        },
         hospital: true
       },
       orderBy: { requestTime: 'desc' }
@@ -33,7 +38,7 @@ router.get('/pending', authMiddleware, async (req: AuthRequest, res: Response) =
       doctorId: req.doctorId,
       doctorName: req.doctor.name,
       hospitalName: req.hospital.name,
-      specialization: req.doctor.specialization,
+      specialization: req.doctor.specialization?.name || null,
       requestTime: req.requestTime.toISOString(),
       recordsRequested: JSON.parse(req.recordsRequested),
       status: req.status.toLowerCase(),
@@ -52,7 +57,8 @@ router.post('/send-otp', authMiddleware, async (req: AuthRequest, res: Response)
     const patientId = req.patientId!;
 
     const patient = await prisma.patient.findUnique({
-      where: { id: patientId }
+      where: { id: patientId },
+      include: { user: true }
     });
 
     if (!patient) {
@@ -61,16 +67,19 @@ router.post('/send-otp', authMiddleware, async (req: AuthRequest, res: Response)
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const otpHash = await bcrypt.hash(otp, 10);
 
-    await prisma.oTP.create({
+    await prisma.verificationOTP.create({
       data: {
         patientId,
-        otp,
+        target: patient.user.phone,
+        type: 'PHONE',
+        otpHash,
         expiresAt
       }
     });
 
-    const normalizedPhone = patient.phone.replace(/\s/g, '');
+    const normalizedPhone = patient.user.phone.replace(/\s/g, '');
     await sendOTP(normalizedPhone, otp);
 
     res.json({ message: 'OTP sent successfully', expiresIn: 300 });
@@ -165,28 +174,38 @@ router.post('/:requestId/approve', [
     const { otp, duration } = req.body;
     const patientId = req.patientId!;
 
-    const validOTP = await prisma.oTP.findFirst({
+    // Find recent pending OTPs and bcrypt-compare
+    const pendingOTPs = await prisma.verificationOTP.findMany({
       where: {
         patientId,
-        otp,
-        used: false,
+        verified: false,
         expiresAt: { gt: new Date() }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: 5
     });
+
+    let validOTP: any = null;
+    for (const record of pendingOTPs) {
+      const match = await bcrypt.compare(otp, record.otpHash);
+      if (match) {
+        validOTP = record;
+        break;
+      }
+    }
 
     if (!validOTP) {
       return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
 
-    await prisma.oTP.update({
+    await prisma.verificationOTP.update({
       where: { id: validOTP.id },
-      data: { used: true }
+      data: { verified: true }
     });
 
     const consentRequest = await prisma.consentRequest.findUnique({
       where: { id: requestId },
-      include: { doctor: true, hospital: true }
+      include: { doctor: { include: { specialization: true } }, hospital: true }
     });
 
     if (!consentRequest) {
@@ -268,7 +287,7 @@ router.post('/:requestId/reject', authMiddleware, async (req: AuthRequest, res: 
 
     const consentRequest = await prisma.consentRequest.findUnique({
       where: { id: requestId },
-      include: { doctor: true, hospital: true }
+      include: { doctor: { include: { specialization: true } }, hospital: true }
     });
 
     if (!consentRequest) {

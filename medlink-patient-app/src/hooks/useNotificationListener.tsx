@@ -13,7 +13,7 @@ interface UseNotificationListenerOptions {
 }
 
 export function useNotificationListener(options: UseNotificationListenerOptions = {}) {
-  const { socket, isConnected, onConsentApproved, onConsentRejected, onAccessRevoked, onAccessExtended, onHospitalBlocked, onHospitalUnblocked, onProfileUpdated } = useSocket();
+  const { socket, onConsentApproved, onConsentRejected, onAccessRevoked, onAccessExtended, onHospitalBlocked, onHospitalUnblocked, onProfileUpdated } = useSocket();
   const { patient, refreshProfile } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 

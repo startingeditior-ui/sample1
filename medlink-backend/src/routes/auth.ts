@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { PrismaClient } from '@prisma/client';
 import { emitToPatient } from '../services/socket';
@@ -43,7 +44,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
   try {
     const { phone, patientId } = req.body;
     
-    let patient = null;
+    let patient: any = null;
     let loginIdentifier = '';
 
     if (phone) {
@@ -52,12 +53,15 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
       
       patient = await prisma.patient.findFirst({
         where: {
-          OR: [
-            { phone: normalizedPhone },
-            { phone: phone },
-            { phone: `+91 ${phone.replace(/\D/g, '').slice(-10)}` }
-          ]
-        }
+          user: {
+            OR: [
+              { phone: normalizedPhone },
+              { phone: phone },
+              { phone: `+91 ${phone.replace(/\D/g, '').slice(-10)}` }
+            ]
+          }
+        },
+        include: { user: true }
       });
       
       if (!patient) {
@@ -66,7 +70,8 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
     } else if (patientId) {
       loginIdentifier = patientId.toUpperCase().trim();
       patient = await prisma.patient.findUnique({
-        where: { patientId: loginIdentifier }
+        where: { patientCode: loginIdentifier },
+        include: { user: true }
       });
       if (!patient) {
         return res.status(404).json({ error: 'Patient not found with this Patient ID' });
@@ -77,18 +82,21 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
 
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const otpHash = await bcrypt.hash(otp, 10);
 
-    await prisma.oTP.create({
+    await prisma.verificationOTP.create({
       data: {
         patientId: patient.id,
-        otp,
+        target: patient.user.phone,
+        type: 'PHONE',
+        otpHash,
         expiresAt
       }
     });
 
     console.log(`\n🔐 OTP for ${loginIdentifier} (${patient.name}): ${otp}\n`);
 
-    const normalizedPhone = patient.phone.replace(/\s/g, '');
+    const normalizedPhone = patient.user.phone.replace(/\s/g, '');
     await sendOTP(normalizedPhone, otp);
 
     res.json({ message: 'OTP sent successfully', expiresIn: 300 });
@@ -106,22 +114,26 @@ router.post('/verify-otp', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Please provide a valid 6-digit OTP' });
     }
 
-    let patient = null;
+    let patient: any = null;
 
     if (phone) {
       const normalizedPhone = normalizePhone(phone);
       patient = await prisma.patient.findFirst({
         where: {
-          OR: [
-            { phone: normalizedPhone },
-            { phone: phone },
-            { phone: `+91 ${phone.replace(/\D/g, '').slice(-10)}` }
-          ]
-        }
+          user: {
+            OR: [
+              { phone: normalizedPhone },
+              { phone: phone },
+              { phone: `+91 ${phone.replace(/\D/g, '').slice(-10)}` }
+            ]
+          }
+        },
+        include: { user: true }
       });
     } else if (patientId) {
       patient = await prisma.patient.findUnique({
-        where: { patientId: patientId.toUpperCase().trim() }
+        where: { patientCode: patientId.toUpperCase().trim() },
+        include: { user: true }
       });
     }
 
@@ -129,23 +141,32 @@ router.post('/verify-otp', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Patient not found' });
     }
 
-    const validOTP = await prisma.oTP.findFirst({
+    const pendingOTPs = await prisma.verificationOTP.findMany({
       where: {
         patientId: patient.id,
-        otp,
-        used: false,
+        verified: false,
         expiresAt: { gt: new Date() }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: 5
     });
+
+    let validOTP: any = null;
+    for (const record of pendingOTPs) {
+      const match = await bcrypt.compare(otp, record.otpHash);
+      if (match) {
+        validOTP = record;
+        break;
+      }
+    }
 
     if (!validOTP) {
       return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
 
-    await prisma.oTP.update({
+    await prisma.verificationOTP.update({
       where: { id: validOTP.id },
-      data: { used: true }
+      data: { verified: true }
     });
 
     const token = jwt.sign(
@@ -160,15 +181,15 @@ router.post('/verify-otp', async (req: AuthRequest, res: Response) => {
       description: 'User logged in successfully'
     });
 
-    await sendWelcomeEmail(patient.email, patient.name, patient.patientId);
+    await sendWelcomeEmail(patient.user.email, patient.name, patient.patientCode);
 
     res.json({ 
       token, 
       patient: {
         id: patient.id,
-        patientId: patient.patientId,
+        patientCode: patient.patientCode,
         name: patient.name,
-        phone: patient.phone
+        phone: patient.user.phone
       }
     });
   } catch (error) {
@@ -269,19 +290,20 @@ router.post('/refresh-token', authMiddleware, async (req: AuthRequest, res: Resp
   }
 });
 
-router.get('/debug-otp/:patientId', async (req: AuthRequest, res: Response) => {
+router.get('/debug-otp/:patientCode', async (req: AuthRequest, res: Response) => {
   try {
-    const { patientId } = req.params;
+    const { patientCode } = req.params;
     
     const patient = await prisma.patient.findUnique({
-      where: { patientId: patientId.toUpperCase() }
+      where: { patientCode: patientCode.toUpperCase() },
+      include: { user: true }
     });
 
     if (!patient) {
       return res.status(404).json({ error: 'Patient not found' });
     }
 
-    const latestOTP = await prisma.oTP.findFirst({
+    const latestOTP = await prisma.verificationOTP.findFirst({
       where: { patientId: patient.id },
       orderBy: { createdAt: 'desc' }
     });
@@ -290,15 +312,15 @@ router.get('/debug-otp/:patientId', async (req: AuthRequest, res: Response) => {
       return res.json({ message: 'No OTP found for this patient' });
     }
 
-    const isValid = latestOTP.expiresAt > new Date() && !latestOTP.used;
+    const isValid = latestOTP.expiresAt > new Date() && !latestOTP.verified;
 
     res.json({
-      patientId: patient.patientId,
+      patientCode: patient.patientCode,
       name: patient.name,
-      phone: patient.phone,
-      otp: latestOTP.otp,
+      phone: patient.user.phone,
+      otpTarget: latestOTP.target,
       expiresAt: latestOTP.expiresAt,
-      used: latestOTP.used,
+      verified: latestOTP.verified,
       isValid
     });
   } catch (error) {

@@ -7,97 +7,272 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ──────────────────────────────────────────────
+
+enum Role {
+  PATIENT
+  DOCTOR
+  HOSPITAL_ADMIN
+  SYSTEM_ADMIN
+  NURSE
+}
+
+enum VerificationType {
+  PHONE
+  EMAIL
+}
+
+// ─── Core Auth ──────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String?  @unique
+  phone        String   @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient  Patient?
+  doctor   Doctor?
+  hospital Hospital?
+  nurse    Nurse?
+
+  @@map("users")
+}
+
+// ─── Patient ────────────────────────────────────────────
+
 model Patient {
   id              String   @id @default(uuid())
-  patientId       String   @unique
+  patientCode     String   @unique // MLPR-YYYYXXXX
+  patientIdCard   String?  @unique // MLI-XXXX-XXXX-XXXX
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  abhaAddress     String?  // The @abdm address
+
+  // Core demographics
   name            String
-  phone           String   @unique
-  email           String   @unique
-  password        String
+  gender          String?
+  dob             DateTime?
   bloodGroup      String?
-  allergies       String   @default("[]")
-  chronicDiseases String   @default("[]")
-  emergencyContact String?
+  photoUrl        String?
+
+  // Medical history
+  allergies       String[]
+  chronicDiseases String[]
+  medications     String[]
+  surgeries       String[]
+
+  // Contact & Emergency
+  emergencyContact             String?
+  emergencyContactName         String?
+  emergencyContactRelationship String?
+
+  // Guardian info (project-specific)
   guardianName     String?
   guardianMobile   String?
   guardianLocation String?
-  fcmToken         String?
-  profilePhoto    String?
-  dateOfBirth     DateTime?
-  gender          String?
-  address         String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 
-  accessRecords   AccessRecord[]
-  consentRequests ConsentRequest[]
-  notifications   Notification[]
+  // Address
+  address          String?
+
+  // Insurance (project-specific)
+  insuranceProvider      String?
+  insuranceCustomerId    String?
+  insuranceType          String?
+  insuranceSupportNumber String?
+
+  // FCM push token (project-specific)
+  fcmToken         String?
+
+  // Nurse who registered this patient
+  nurseId          String?
+  nurse            Nurse?   @relation(fields: [nurseId], references: [id])
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations (project-specific)
+  accessRecords    AccessRecord[]
+  consentRequests  ConsentRequest[]
+  notifications    Notification[]
   blockedHospitals BlockedHospital[]
-  otps            OTP[]
-  auditLogs       AuditLog[]
+  verificationOTPs VerificationOTP[]
+  auditLogs        AuditLog[]
+  patientRecords   PatientRecord[]
+
+  @@map("patients")
 }
+
+// ─── Hospital ───────────────────────────────────────────
 
 model Hospital {
-  id        String   @id @default(uuid())
-  name      String
-  address   String?
-  phone     String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(uuid())
+  hospitalCode  String   @unique // MLHP-YYYYXXXX
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  doctors         Doctor[]
-  accessRecords   AccessRecord[]
-  consentRequests ConsentRequest[]
+  name          String
+  facilityType  String
+  ownershipType String
+  managerName   String
+  regNumber     String   @unique
+  address       String
+  phone         String?
+  verified      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  // HospitalType (project-specific categorisation)
+  hospitalTypeId String?
+  hospitalType   HospitalType? @relation(fields: [hospitalTypeId], references: [id])
+
+  // Relations
+  doctors          Doctor[]
+  accessRecords    AccessRecord[]
+  consentRequests  ConsentRequest[]
   blockedHospitals BlockedHospital[]
-  auditLogs       AuditLog[]
+  auditLogs        AuditLog[]
+  patientRecords   PatientRecord[]
+
+  @@map("hospitals")
 }
 
-model Doctor {
-  id             String   @id @default(uuid())
-  name           String
-  specialization String?
-  hospitalId     String
-  createdAt      DateTime @default(now())
+// ─── Hospital Type (project-specific) ───────────────────
 
-  hospital         Hospital       @relation(fields: [hospitalId], references: [id])
+model HospitalType {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  hospitals Hospital[]
+}
+
+// ─── Doctor ─────────────────────────────────────────────
+
+model Doctor {
+  id                  String   @id @default(uuid())
+  doctorCode          String   @unique // MLDR-YYYYXXXX
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospitalId          String
+  hospital            Hospital @relation(fields: [hospitalId], references: [id])
+
+  name                String
+  systemOfMedicine    String
+  stateMedicalCouncil String
+  registrationYear    Int
+  specialty           String
+  licenseNo           String   @unique
+
+  // Specialization FK (project-specific)
+  specializationId    String?
+  specialization      Specialization? @relation(fields: [specializationId], references: [id])
+
+  createdAt           DateTime @default(now())
+
+  // Relations (project-specific)
   accessRecords    AccessRecord[]
   consentRequests  ConsentRequest[]
   auditLogs        AuditLog[]
+  patientRecords   PatientRecord[]
+
+  @@map("doctors")
 }
+
+// ─── Specialization (project-specific) ──────────────────
+
+model Specialization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  doctors Doctor[]
+}
+
+// ─── Nurse ──────────────────────────────────────────────
+
+model Nurse {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nurseCode            String   @unique // MLNR-YYYYXXXX
+  fullName             String
+  stateNursingCouncil  String
+  registrationNumber   String   @unique
+  nuid                 String?
+  registrationDate     DateTime
+  licenseExpiryDate    DateTime
+  qualification        String
+  createdAt            DateTime @default(now())
+
+  patients Patient[]
+
+  @@map("nurses")
+}
+
+// ─── Verification ───────────────────────────────────────
+
+model VerificationOTP {
+  id          String           @id @default(uuid())
+  target      String           // phone number or email address
+  type        VerificationType
+  otpHash     String           // bcrypt hash of OTP
+  attempts    Int              @default(0)
+  maxAttempts Int              @default(5)
+  verified    Boolean          @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+
+  // Optional patient link (project-specific convenience)
+  patientId   String?
+  patient     Patient? @relation(fields: [patientId], references: [id])
+
+  @@index([target, type])
+  @@map("verification_otps")
+}
+
+// ─── Access Records (project-specific) ──────────────────
 
 model AccessRecord {
-  id              String        @id @default(uuid())
-  patientId       String
-  doctorId        String
-  hospitalId      String
-  accessStartTime DateTime      @default(now())
+  id               String   @id @default(uuid())
+  patientId        String
+  doctorId         String
+  hospitalId       String
+  accessStartTime  DateTime @default(now())
   accessExpiryTime DateTime
-  recordsViewed   String        @default("[]")
-  status          String        @default("ACTIVE")
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  recordsViewed    String   @default("[]")
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   patient  Patient  @relation(fields: [patientId], references: [id])
   doctor   Doctor   @relation(fields: [doctorId], references: [id])
   hospital Hospital @relation(fields: [hospitalId], references: [id])
 }
+
+// ─── Consent Requests (project-specific) ────────────────
 
 model ConsentRequest {
-  id                String   @id @default(uuid())
-  patientId         String
-  doctorId          String
-  hospitalId        String
-  recordsRequested  String   @default("[]")
-  status            String   @default("PENDING")
-  duration          Int      @default(24)
-  requestTime       DateTime @default(now())
-  responseTime      DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(uuid())
+  patientId        String
+  doctorId         String
+  hospitalId       String
+  recordsRequested String   @default("[]")
+  status           String   @default("PENDING")
+  duration         Int      @default(24)
+  requestTime      DateTime @default(now())
+  responseTime     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   patient  Patient  @relation(fields: [patientId], references: [id])
   doctor   Doctor   @relation(fields: [doctorId], references: [id])
   hospital Hospital @relation(fields: [hospitalId], references: [id])
 }
+
+// ─── Notifications (project-specific) ───────────────────
 
 model Notification {
   id           String   @id @default(uuid())
@@ -114,11 +289,13 @@ model Notification {
   patient Patient @relation(fields: [patientId], references: [id])
 }
 
+// ─── Blocked Hospitals (project-specific) ───────────────
+
 model BlockedHospital {
-  id        String   @id @default(uuid())
-  patientId String
+  id         String   @id @default(uuid())
+  patientId  String
   hospitalId String
-  blockedAt DateTime @default(now())
+  blockedAt  DateTime @default(now())
 
   patient  Patient  @relation(fields: [patientId], references: [id])
   hospital Hospital @relation(fields: [hospitalId], references: [id])
@@ -126,34 +303,72 @@ model BlockedHospital {
   @@unique([patientId, hospitalId])
 }
 
-model OTP {
-  id        String   @id @default(uuid())
-  patientId String
-  otp       String
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  patient Patient @relation(fields: [patientId], references: [id])
-}
+// ─── Audit Log (merged) ──────────────────────────────────
 
 model AuditLog {
-  id          String   @id @default(uuid())
+  id         String   @id @default(uuid())
+
+  // Master source fields (actor-based)
+  actorId    String?
+  actorRole  Role?
+  action     String
+  targetId   String?
+  targetType String?
+  metadata   Json?
+
+  // Project-specific fields
+  description String?
+  ipAddress   String?
+  userAgent   String?
+
+  // Project-specific FKs for direct lookups
   patientId   String?
   doctorId    String?
   hospitalId  String?
-  action      String
-  description String
-  metadata    String?
-  ipAddress   String?
-  userAgent   String?
+
   createdAt   DateTime @default(now())
 
-  patient   Patient?   @relation(fields: [patientId], references: [id])
-  doctor    Doctor?    @relation(fields: [doctorId], references: [id])
-  hospital  Hospital?  @relation(fields: [hospitalId], references: [id])
+  patient  Patient?  @relation(fields: [patientId], references: [id])
+  doctor   Doctor?   @relation(fields: [doctorId], references: [id])
+  hospital Hospital? @relation(fields: [hospitalId], references: [id])
 
   @@index([patientId])
   @@index([action])
   @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─── Medical Records (project-specific) ─────────────────
+
+model MedicalRecordType {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+
+  patientRecords PatientRecord[]
+}
+
+model PatientRecord {
+  id           String   @id @default(uuid())
+  patientId    String
+  recordTypeId String
+  title        String
+  description  String?
+  fileUrl      String?
+  date         DateTime
+  hospitalId   String?
+  doctorId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient    Patient           @relation(fields: [patientId], references: [id])
+  recordType MedicalRecordType @relation(fields: [recordTypeId], references: [id])
+  hospital   Hospital?         @relation(fields: [hospitalId], references: [id])
+  doctor     Doctor?           @relation(fields: [doctorId], references: [id])
+
+  @@index([patientId])
+  @@index([recordTypeId])
+  @@index([date])
 }

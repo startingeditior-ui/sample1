@@ -15,6 +15,10 @@ export interface Patient {
   guardianName?: string;
   guardianMobile?: string;
   guardianLocation?: string;
+  insuranceProvider?: string;
+  insuranceCustomerId?: string;
+  insuranceType?: string;
+  insuranceSupportNumber?: string;
   createdAt: string;
 }
 
@@ -94,4 +98,67 @@ export interface AuditLog {
   hospitalName?: string;
   metadata?: any;
   createdAt: string;
+}
+
+export interface MedicalRecordType {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface MedicalRecord {
+  id: string;
+  title: string;
+  description?: string;
+  fileUrl?: string;
+  date: string;
+  hospitalId?: string;
+  hospitalName?: string;
+  doctorId?: string;
+  doctorName?: string;
+  doctorSpecialization?: string;
+  recordType: MedicalRecordType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Specialization {
+  id: string;
+  name: string;
+  doctorCount?: number;
+}
+
+export interface HospitalType {
+  id: string;
+  name: string;
+  hospitalCount?: number;
+}
+
+export interface DoctorWithDetails {
+  id: string;
+  name: string;
+  specializationId?: string;
+  specialization?: string;
+  hospitalId: string;
+  hospitalName: string;
+  hospitalAddress?: string;
+  hospitalPhone?: string;
+}
+
+export interface HospitalWithDetails {
+  id: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  hospitalTypeId?: string;
+  hospitalType?: string;
+  doctorCount?: number;
+}
+
+export interface RecordsResponse {
+  records: MedicalRecord[];
+  total: number;
+  limit: number;
+  offset: number;
 }

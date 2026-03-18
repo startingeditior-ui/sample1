@@ -28,7 +28,17 @@ apiClient.interceptors.response.use(
         localStorage.removeItem('patientId');
         localStorage.removeItem('loginMethod');
         localStorage.removeItem('loginIdentifier');
-        window.location.href = '/login';
+        
+        const errorCode = error.response?.data?.code;
+        let redirectUrl = '/login';
+        
+        if (errorCode === 'TOKEN_EXPIRED') {
+          redirectUrl = '/login?reason=session_expired';
+        } else if (errorCode === 'NO_TOKEN' || errorCode === 'INVALID_TOKEN') {
+          redirectUrl = '/login?reason=session_invalid';
+        }
+        
+        window.location.href = redirectUrl;
       }
     }
     return Promise.reject(error);
@@ -90,4 +100,91 @@ export const notificationAPI = {
 
 export const auditLogAPI = {
   getAuditLogs: (limit?: number) => apiClient.get(`/patient/audit-logs${limit ? `?limit=${limit}` : ''}`),
+};
+
+export const recordsAPI = {
+  getRecords: (params?: {
+    typeId?: string;
+    hospitalId?: string;
+    doctorId?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, String(value));
+        }
+      });
+    }
+    return apiClient.get(`/patient/records${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
+  },
+  getRecord: (id: string) => apiClient.get(`/patient/records/${id}`),
+  addRecord: (data: {
+    recordTypeId: string;
+    title: string;
+    description?: string;
+    fileUrl?: string;
+    date: string;
+    hospitalId?: string;
+    doctorId?: string;
+  }) => apiClient.post('/patient/records', data),
+  updateRecord: (id: string, data: Partial<{
+    recordTypeId: string;
+    title: string;
+    description: string;
+    fileUrl: string;
+    date: string;
+    hospitalId: string;
+    doctorId: string;
+  }>) => apiClient.put(`/patient/records/${id}`, data),
+  deleteRecord: (id: string) => apiClient.delete(`/patient/records/${id}`),
+  getRecordTypes: () => apiClient.get('/patient/records/types'),
+};
+
+export const doctorsAPI = {
+  getDoctors: (params?: {
+    specializationId?: string;
+    hospitalId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, String(value));
+        }
+      });
+    }
+    return apiClient.get(`/doctors${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
+  },
+  getDoctor: (id: string) => apiClient.get(`/doctors/${id}`),
+  getSpecializations: () => apiClient.get('/doctors/specializations'),
+};
+
+export const hospitalsAPI = {
+  getHospitals: (params?: {
+    hospitalTypeId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, String(value));
+        }
+      });
+    }
+    return apiClient.get(`/hospitals${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
+  },
+  getHospital: (id: string) => apiClient.get(`/hospitals/${id}`),
+  getHospitalTypes: () => apiClient.get('/hospitals/types'),
 };
