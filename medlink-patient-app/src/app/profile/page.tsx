@@ -67,6 +67,17 @@ export default function ProfilePage() {
 
   if (!patient) return null;
 
+  // Safely resolve photo URL — Next.js <Image> throws "Invalid URL" on null/empty/non-http values
+  const rawPhoto = patient.profilePhoto || patient.photoUrl || '';
+  const validPhotoUrl =
+    rawPhoto &&
+    (rawPhoto.startsWith('http://') ||
+      rawPhoto.startsWith('https://') ||
+      rawPhoto.startsWith('/') ||
+      rawPhoto.startsWith('data:'))
+      ? rawPhoto
+      : null;
+
   return (
     <div className="space-y-5">
       {/* Avatar Section */}
@@ -76,14 +87,14 @@ export default function ProfilePage() {
         className="text-center py-4"
       >
         <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto overflow-hidden border-4 border-white shadow-md">
-          {patient.profilePhoto ? (
-            <Image src={patient.profilePhoto} alt="Profile" width={96} height={96} className="w-full h-full object-cover" unoptimized />
+          {validPhotoUrl ? (
+            <Image src={validPhotoUrl} alt="Profile" width={96} height={96} className="w-full h-full object-cover" unoptimized />
           ) : (
             <User className="w-12 h-12 text-emerald-600" />
           )}
         </div>
         <h2 className="text-xl font-bold text-gray-900 mt-4">{patient.name}</h2>
-        <p className="text-gray-500 text-sm font-mono mt-0.5">{patient.patientId}</p>
+        <p className="text-gray-500 text-sm font-mono mt-0.5">{patient.patientId || patient.patientCode}</p>
       </motion.div>
 
       {/* Personal Information */}
@@ -93,7 +104,7 @@ export default function ProfilePage() {
           <InfoRow icon={<User className="w-4 h-4" />} label="Full Name" value={patient.name || ''} />
           <InfoRow icon={<Mail className="w-4 h-4" />} label="Email" value={patient.email || ''} />
           <InfoRow icon={<Phone className="w-4 h-4" />} label="Phone" value={patient.phone || ''} />
-          <InfoRow icon={<Calendar className="w-4 h-4" />} label="Date of Birth" value={patient.dateOfBirth || ''} />
+          <InfoRow icon={<Calendar className="w-4 h-4" />} label="Date of Birth" value={patient.dateOfBirth || patient.dob || ''} />
           <InfoRow icon={<MapPin className="w-4 h-4" />} label="Address" value={patient.address || ''} />
         </Card>
       </motion.div>

@@ -129,6 +129,17 @@ export default function DashboardPage() {
 
   if (!patient) return null;
 
+  // Safely resolve photo URL — Next.js <Image> throws "Invalid URL" on null/empty/non-http values
+  const rawPhoto = patient.profilePhoto || patient.photoUrl || '';
+  const safePhotoUrl =
+    rawPhoto &&
+    (rawPhoto.startsWith('http://') ||
+      rawPhoto.startsWith('https://') ||
+      rawPhoto.startsWith('/') ||
+      rawPhoto.startsWith('data:'))
+      ? rawPhoto
+      : null;
+
   const stats = [
     { value: activeAccess.length, label: 'Active', color: 'text-emerald-600', href: '/access' },
     { value: pendingRequests.length, label: 'Pending', color: 'text-yellow-600', href: '/consent' },
@@ -158,8 +169,8 @@ export default function DashboardPage() {
             <p className="text-emerald-100/80 text-xs mt-0.5 font-mono">{patient.patientId}</p>
           </div>
           <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center overflow-hidden ml-4 flex-shrink-0 border-2 border-white/30">
-            {patient.profilePhoto ? (
-              <Image src={patient.profilePhoto} alt="Profile" width={48} height={48} className="w-full h-full object-cover" unoptimized />
+            {safePhotoUrl ? (
+              <Image src={safePhotoUrl} alt="Profile" width={48} height={48} className="w-full h-full object-cover" unoptimized />
             ) : (
               <User className="w-6 h-6 text-white" />
             )}

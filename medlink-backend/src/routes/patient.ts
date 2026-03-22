@@ -48,12 +48,31 @@ router.get('/profile', authMiddleware, async (req: AuthRequest, res: Response) =
       return res.status(404).json({ error: 'Patient not found' });
     }
 
+    // Resolve photo URL:
+    // - http/https → use as-is (already a full URL, e.g. Cloudinary)
+    // - data:       → use as-is (base64 image stored by registration frontend)
+    // - relative    → prefix with backend base URL (e.g. /uploads/photo.jpg)
+    // - null/empty  → null (frontend will show fallback avatar)
+    const apiBase = (process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`).replace(/\/$/, '');
+    const rawPhoto = patient.photoUrl || null;
+    const resolvedPhotoUrl = rawPhoto
+      ? (rawPhoto.startsWith('http') || rawPhoto.startsWith('data:')
+          ? rawPhoto
+          : `${apiBase}${rawPhoto}`)
+      : null;
+
     res.json({ 
       patient: {
         ...patient,
         phone: patient.user?.phone,
         email: patient.user?.email,
-        dob: patient.dob?.toISOString().split('T')[0]
+        // Normalize field names to frontend conventions
+        patientId: patient.patientCode,           // FE uses patientId to display the code
+        dateOfBirth: patient.dob ? patient.dob.toISOString().split('T')[0] : null,
+        profilePhoto: resolvedPhotoUrl,
+        // Keep originals for backward compat but ensure normalized names are present
+        dob: patient.dob ? patient.dob.toISOString().split('T')[0] : null,
+        photoUrl: resolvedPhotoUrl,
       }
     });
   } catch (error) {

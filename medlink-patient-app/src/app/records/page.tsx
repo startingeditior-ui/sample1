@@ -25,7 +25,6 @@ import {
 import { useSocket } from '@/hooks/useSocket';
 import { recordsAPI } from '@/lib/api';
 import { MedicalRecord, MedicalRecordType } from '@/types';
-import Image from 'next/image';
 
 const recordTypeIcons: Record<string, React.ReactNode> = {
   'Lab Report': <FlaskConical className="w-5 h-5" />,
@@ -570,18 +569,27 @@ export default function RecordsPage() {
                 </div>
                 <div className="p-4 flex items-center justify-center bg-gray-100 min-h-[400px]">
                   {selectedRecord.fileUrl ? (
-                    <Image 
-                      src={selectedRecord.fileUrl} 
-                      alt={selectedRecord.title}
-                      width={400}
-                      height={300}
-                      className="max-w-full max-h-[60vh] object-contain rounded-lg"
-                      unoptimized
-                    />
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedRecord.fileUrl}
+                        alt={selectedRecord.title}
+                        className="max-w-full max-h-[60vh] object-contain rounded-lg"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
+                      />
+                      <div className="text-center hidden flex-col items-center" style={{ display: 'none' }}>
+                        <FileText className="w-20 h-20 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500">File cannot be displayed</p>
+                      </div>
+                    </>
                   ) : (
                     <div className="text-center">
                       <FileText className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500">No image available</p>
+                      <p className="text-gray-500">No file attached</p>
                     </div>
                   )}
                 </div>

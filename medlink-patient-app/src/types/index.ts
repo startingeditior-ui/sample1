@@ -1,6 +1,7 @@
 export interface Patient {
   id: string;
-  patientId: string;
+  patientId: string;       // normalized from patientCode by the backend
+  patientCode?: string;    // raw patientCode field from DB (also present in response)
   name: string;
   phone: string;
   email?: string;
@@ -8,8 +9,10 @@ export interface Patient {
   allergies?: string[];
   chronicDiseases?: string[];
   emergencyContact?: string;
-  profilePhoto?: string;
-  dateOfBirth?: string;
+  profilePhoto?: string;   // normalized from photoUrl by the backend
+  photoUrl?: string;       // raw photoUrl field (also present in response, same value)
+  dateOfBirth?: string;    // normalized from dob by the backend (YYYY-MM-DD)
+  dob?: string;            // raw dob field (also present in response, same value)
   gender?: string;
   address?: string;
   guardianName?: string;

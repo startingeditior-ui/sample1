@@ -1,7 +1,7 @@
+import 'dotenv/config';  // Must be FIRST: loads .env before any other module
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { config } from 'dotenv';
 import { createServer } from 'http';
 import { initSocket } from './services/socket';
 
@@ -14,7 +14,7 @@ import recordsRoutes from './routes/records';
 import doctorsRoutes from './routes/doctors';
 import hospitalsRoutes from './routes/hospitals';
 
-config();
+// dotenv already loaded via 'import dotenv/config' at top of file
 
 const app = express();
 const PORT = process.env.PORT || 3001;
