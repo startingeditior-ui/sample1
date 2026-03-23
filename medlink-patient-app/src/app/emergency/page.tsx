@@ -2,21 +2,55 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, Droplet, AlertTriangle, Heart, PhoneCall, Share2, Shield, User, MapPin, Copy, Check, Download, CreditCard } from 'lucide-react';
+import { AlertCircle, Droplet, AlertTriangle, Heart, PhoneCall, Share2, Shield, User, MapPin, Copy, Check, Download, CreditCard, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
+import { patientAPI } from '@/lib/api';
 import QRCode from 'qrcode';
 import Image from 'next/image';
 
+interface EmergencyDataResponse {
+  name: string;
+  gender: string;
+  dob: string | null;
+  bloodGroup: string;
+  allergies: string[];
+  chronicDiseases: string[];
+  emergencyContact: string;
+  emergencyContactName: string;
+  emergencyContactRelationship: string;
+  medications: string[];
+  phone: string;
+  guardianName: string;
+  guardianMobile: string;
+}
+
 export default function EmergencyPage() {
-  const { patient, insuranceData } = useAuth();
+  const { patient, insuranceData, isAuthInitializing } = useAuth();
+  const [emergencyData, setEmergencyData] = useState<EmergencyDataResponse | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const fetchEmergencyData = async () => {
+      if (!patient?.patientId) return;
+      try {
+        const response = await patientAPI.getEmergencyData();
+        if (response.data.success) {
+          setEmergencyData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch emergency data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     if (patient?.patientId) {
+      fetchEmergencyData();
       QRCode.toDataURL(`EMERGENCY:${patient.patientId}`, {
         width: 150,
         margin: 2,
@@ -29,11 +63,12 @@ export default function EmergencyPage() {
   }, [patient?.patientId]);
 
   const handleShare = async () => {
+    if (!emergencyData) return;
     const shareData = `
 🚨 MEDLINK EMERGENCY CARD 🚨
 
 Patient ID: ${patient?.patientId}
-Blood Group: ${emergencyData.bloodGroup}
+Blood Group: ${displayData.bloodGroup}
 Allergies: ${emergencyData.allergies.join(', ')}
 Chronic Diseases: ${emergencyData.chronicDiseases.join(', ')}
 
@@ -42,10 +77,10 @@ Guardian: ${emergencyData.guardianName}
 Guardian Phone: ${emergencyData.guardianMobile}
 Guardian Location: ${emergencyData.guardianLocation}
 
-${emergencyData.insuranceProvider ? `Insurance Provider: ${emergencyData.insuranceProvider}` : ''}
-${emergencyData.insuranceCustomerId ? `Insurance ID: ${emergencyData.insuranceCustomerId}` : ''}
-${emergencyData.insuranceType ? `Insurance Type: ${emergencyData.insuranceType}` : ''}
-${emergencyData.insuranceSupportNumber ? `Insurance Support: ${emergencyData.insuranceSupportNumber}` : ''}
+${insuranceData?.insuranceProvider ? `Insurance Provider: ${insuranceData.insuranceProvider}` : ''}
+${insuranceData?.insuranceCustomerId ? `Insurance ID: ${insuranceData.insuranceCustomerId}` : ''}
+${insuranceData?.insuranceType ? `Insurance Type: ${insuranceData.insuranceType}` : ''}
+${insuranceData?.insuranceSupportNumber ? `Insurance Support: ${insuranceData.insuranceSupportNumber}` : ''}
 
 Scan QR code or visit MedLink to verify.
     `.trim();
@@ -67,11 +102,12 @@ Scan QR code or visit MedLink to verify.
   };
 
   const handleCopy = async (text?: string) => {
+    if (!emergencyData) return;
     const shareData = text || `
 🚨 MEDLINK EMERGENCY CARD 🚨
 
 Patient ID: ${patient?.patientId}
-Blood Group: ${emergencyData.bloodGroup}
+Blood Group: ${displayData.bloodGroup}
 Allergies: ${emergencyData.allergies.join(', ')}
 Chronic Diseases: ${emergencyData.chronicDiseases.join(', ')}
 
@@ -80,10 +116,10 @@ Guardian: ${emergencyData.guardianName}
 Guardian Phone: ${emergencyData.guardianMobile}
 Guardian Location: ${emergencyData.guardianLocation}
 
-${emergencyData.insuranceProvider ? `Insurance Provider: ${emergencyData.insuranceProvider}` : ''}
-${emergencyData.insuranceCustomerId ? `Insurance ID: ${emergencyData.insuranceCustomerId}` : ''}
-${emergencyData.insuranceType ? `Insurance Type: ${emergencyData.insuranceType}` : ''}
-${emergencyData.insuranceSupportNumber ? `Insurance Support: ${emergencyData.insuranceSupportNumber}` : ''}
+${insuranceData?.insuranceProvider ? `Insurance Provider: ${insuranceData.insuranceProvider}` : ''}
+${insuranceData?.insuranceCustomerId ? `Insurance ID: ${insuranceData.insuranceCustomerId}` : ''}
+${insuranceData?.insuranceType ? `Insurance Type: ${insuranceData.insuranceType}` : ''}
+${insuranceData?.insuranceSupportNumber ? `Insurance Support: ${insuranceData.insuranceSupportNumber}` : ''}
 
 Scan QR code or visit MedLink to verify.
     `.trim();
@@ -115,20 +151,24 @@ Scan QR code or visit MedLink to verify.
     }
   };
 
-  if (!patient) return null;
+  if (isAuthInitializing || isLoading || !patient) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
-  const emergencyData = {
+  const displayData = emergencyData || {
     bloodGroup: patient.bloodGroup || 'Unknown',
     allergies: patient.allergies || ['None'],
     chronicDiseases: patient.chronicDiseases || ['None'],
     emergencyContact: patient.emergencyContact || 'Not set',
+    emergencyContactName: patient.emergencyContactName || '',
+    emergencyContactRelationship: patient.emergencyContactRelationship || '',
     guardianName: patient.guardianName || 'Not set',
     guardianMobile: patient.guardianMobile || 'Not set',
     guardianLocation: patient.guardianLocation || 'Not set',
-    insuranceProvider: insuranceData?.insuranceProvider || '',
-    insuranceCustomerId: insuranceData?.insuranceCustomerId || '',
-    insuranceType: insuranceData?.insuranceType || '',
-    insuranceSupportNumber: insuranceData?.insuranceSupportNumber || '',
   };
 
   const hasInsurance = insuranceData && (insuranceData.insuranceProvider || insuranceData.insuranceCustomerId);
@@ -178,7 +218,7 @@ Scan QR code or visit MedLink to verify.
               </div>
               <div>
                 <p className="text-xs text-gray-500">Blood Group</p>
-                <p className="text-2xl font-bold text-red-600">{emergencyData.bloodGroup}</p>
+                <p className="text-2xl font-bold text-red-600">{displayData.bloodGroup}</p>
               </div>
             </div>
 
@@ -190,7 +230,7 @@ Scan QR code or visit MedLink to verify.
                 <p className="text-sm font-medium text-gray-900">Known Allergies</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {emergencyData.allergies.map((allergy, idx) => (
+                {displayData.allergies.map((allergy, idx) => (
                   <span key={idx} className="bg-red-100 text-error px-3 py-1 rounded-full text-sm font-medium">
                     {allergy}
                   </span>
@@ -204,7 +244,7 @@ Scan QR code or visit MedLink to verify.
                 <p className="text-sm font-medium text-gray-900">Chronic Conditions</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {emergencyData.chronicDiseases.map((disease, idx) => (
+                {displayData.chronicDiseases.map((disease, idx) => (
                   <span key={idx} className="bg-red-100 text-error px-3 py-1 rounded-full text-sm font-medium">
                     {disease}
                   </span>
@@ -219,7 +259,7 @@ Scan QR code or visit MedLink to verify.
                 <PhoneCall className="w-4 h-4 text-red-600" />
                 <p className="text-sm font-medium text-gray-900">Emergency Contact</p>
               </div>
-              <p className="text-lg font-semibold text-gray-900">{emergencyData.emergencyContact}</p>
+              <p className="text-lg font-semibold text-gray-900">{displayData.emergencyContact}</p>
             </div>
 
             <div className="h-px bg-red-200 my-1" />
@@ -229,18 +269,18 @@ Scan QR code or visit MedLink to verify.
                 <Shield className="w-4 h-4 text-red-600" />
                 <p className="text-sm font-medium text-gray-900">Guardian Information</p>
               </div>
-              <div className="space-y-2">
+                <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-text-outline" />
-                  <p className="text-base font-medium text-gray-900">{emergencyData.guardianName}</p>
+                  <p className="text-base font-medium text-gray-900">{displayData.guardianName}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <PhoneCall className="w-4 h-4 text-text-outline" />
-                  <p className="text-base font-medium text-gray-900">{emergencyData.guardianMobile}</p>
+                  <p className="text-base font-medium text-gray-900">{displayData.guardianMobile}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-text-outline" />
-                  <p className="text-base font-medium text-gray-900">{emergencyData.guardianLocation}</p>
+                  <p className="text-base font-medium text-gray-900">{displayData.guardianLocation}</p>
                 </div>
               </div>
             </div>
@@ -254,28 +294,28 @@ Scan QR code or visit MedLink to verify.
                     <p className="text-sm font-medium text-gray-900">Insurance Information</p>
                   </div>
                   <div className="space-y-2">
-                    {emergencyData.insuranceProvider && (
+                    {insuranceData?.insuranceProvider && (
                       <div className="flex items-center gap-2">
                         <Shield className="w-4 h-4 text-gray-400" />
-                        <p className="text-base font-medium text-gray-900">{emergencyData.insuranceProvider}</p>
+                        <p className="text-base font-medium text-gray-900">{insuranceData.insuranceProvider}</p>
                       </div>
                     )}
-                    {emergencyData.insuranceCustomerId && (
+                    {insuranceData?.insuranceCustomerId && (
                       <div className="flex items-center gap-2">
                         <CreditCard className="w-4 h-4 text-gray-400" />
-                        <p className="text-base font-medium text-gray-900">ID: {emergencyData.insuranceCustomerId}</p>
+                        <p className="text-base font-medium text-gray-900">ID: {insuranceData.insuranceCustomerId}</p>
                       </div>
                     )}
-                    {emergencyData.insuranceType && (
+                    {insuranceData?.insuranceType && (
                       <div className="flex items-center gap-2">
                         <CreditCard className="w-4 h-4 text-gray-400" />
-                        <p className="text-base font-medium text-gray-900">{emergencyData.insuranceType}</p>
+                        <p className="text-base font-medium text-gray-900">{insuranceData.insuranceType}</p>
                       </div>
                     )}
-                    {emergencyData.insuranceSupportNumber && (
+                    {insuranceData?.insuranceSupportNumber && (
                       <div className="flex items-center gap-2">
                         <PhoneCall className="w-4 h-4 text-gray-400" />
-                        <p className="text-base font-medium text-gray-900">{emergencyData.insuranceSupportNumber}</p>
+                        <p className="text-base font-medium text-gray-900">{insuranceData.insuranceSupportNumber}</p>
                       </div>
                     )}
                   </div>

@@ -31,7 +31,7 @@ const getSocketUrl = (): string => {
   }
   const protocol = window.location.protocol;
   const hostname = window.location.hostname;
-  return `${protocol}//${hostname}:3001`;
+  return `${protocol}//${hostname}:5002`;
 };
 
 export function SocketProvider({ children }: { children: ReactNode }) {

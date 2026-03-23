@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { User, Phone, Mail, Calendar, MapPin, Droplet, AlertTriangle, PhoneCall, LogOut, Shield, CreditCard, Pencil } from 'lucide-react';
+import { User, Phone, Mail, Calendar, MapPin, Droplet, AlertTriangle, PhoneCall, LogOut, Shield, CreditCard, Pencil, Lock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, Input } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
+import { patientAPI } from '@/lib/api';
 import Image from 'next/image';
 
 interface InsuranceData {
@@ -32,7 +33,7 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { patient, logout, insuranceData, saveInsuranceData } = useAuth();
+  const { patient, logout, insuranceData, saveInsuranceData, isAuthInitializing } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [insurance, setInsurance] = useState<InsuranceData>({
     insuranceProvider: '',
@@ -41,29 +42,74 @@ export default function ProfilePage() {
     insuranceSupportNumber: '',
   });
   const [saved, setSaved] = useState(false);
+  
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   useEffect(() => {
     if (insuranceData) setInsurance(insuranceData);
   }, [insuranceData]);
 
   const handleInsuranceChange = (field: keyof InsuranceData, value: string) => {
-    setInsurance(prev => ({ ...prev, [field]: value }));
-    setSaved(false);
+    setInsurance((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSaveInsurance = () => {
-    saveInsuranceData(insurance);
-    setIsEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const handleSaveInsurance = async () => {
+    try {
+      await saveInsuranceData(insurance);
+      setSaved(true);
+      setIsEditing(false);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error('Failed to save insurance:', err);
+    }
+  };
+
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    
+    if (newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await patientAPI.setPassword(patient.id, newPassword);
+      setPasswordSuccess(true);
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPasswordForm(false);
+    } catch (err: any) {
+      setPasswordError(err.response?.data?.error || 'Failed to set password');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const handleLogout = () => {
-    if (confirm('Are you sure you want to logout?')) {
-      logout();
-      router.push('/');
-    }
+    logout();
+    router.push('/login');
   };
+
+  if (isAuthInitializing) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
   if (!patient) return null;
 
@@ -124,6 +170,8 @@ export default function ProfilePage() {
         <Card className="p-5">
           <h3 className="font-semibold text-gray-800 mb-2">Emergency Contact</h3>
           <InfoRow icon={<PhoneCall className="w-4 h-4" />} label="Emergency Contact" value={patient.emergencyContact || ''} />
+          <InfoRow icon={<User className="w-4 h-4" />} label="Contact Name" value={patient.emergencyContactName || ''} />
+          <InfoRow icon={<Shield className="w-4 h-4" />} label="Relationship" value={patient.emergencyContactRelationship || ''} />
           <InfoRow icon={<Shield className="w-4 h-4" />} label="Guardian Name" value={patient.guardianName || ''} />
           <InfoRow icon={<Phone className="w-4 h-4" />} label="Guardian Mobile" value={patient.guardianMobile || ''} />
           <InfoRow icon={<MapPin className="w-4 h-4" />} label="Guardian Location" value={patient.guardianLocation || ''} />
@@ -191,8 +239,94 @@ export default function ProfilePage() {
         </Card>
       </motion.div>
 
+      {/* Set Password */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <Card className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-gray-600" />
+              <h3 className="font-semibold text-gray-800">Security</h3>
+            </div>
+            {!showPasswordForm && (
+              <Button variant="ghost" size="sm" onClick={() => setShowPasswordForm(true)} className="text-emerald-600 hover:bg-emerald-50">
+                <Pencil className="w-4 h-4 mr-1.5" />
+                Set Password
+              </Button>
+            )}
+          </div>
+
+          {passwordSuccess && (
+            <div className="flex items-center gap-2 mb-4 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100">
+              <CheckCircle className="w-4 h-4" />
+              Password set successfully!
+            </div>
+          )}
+
+          {showPasswordForm && (
+            <form onSubmit={handleSetPassword} className="space-y-4">
+              <Input
+                label="New Password"
+                type={showPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                icon={<Lock className="w-4 h-4" />}
+              />
+              <Input
+                label="Confirm Password"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter password"
+                icon={<Lock className="w-4 h-4" />}
+              />
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showPassword"
+                  checked={showPassword}
+                  onChange={(e) => setShowPassword(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label htmlFor="showPassword" className="text-sm text-gray-600">
+                  Show passwords
+                </label>
+              </div>
+
+              {passwordError && (
+                <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-xl border border-red-100">
+                  <AlertCircle className="w-4 h-4" />
+                  {passwordError}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button type="submit" variant="filled" className="flex-1" isLoading={passwordLoading}>
+                  Set Password
+                </Button>
+                <Button type="button" variant="outlined" onClick={() => {
+                  setShowPasswordForm(false);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setPasswordError('');
+                }}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {!showPasswordForm && (
+            <p className="text-sm text-gray-500">
+              Set a password to secure your account and enable re-authentication after 3 hours of inactivity.
+            </p>
+          )}
+        </Card>
+      </motion.div>
+
       {/* Logout */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors font-semibold text-sm"

@@ -97,7 +97,24 @@ function LoginForm() {
       await verifyOTP(identifier, otp, loginMethod);
       setIsSuccess(true);
       setSuccessMessage('Login successful!');
-      setTimeout(() => router.push('/'), 2000);
+      
+      // Check for stored redirect URL or returnUrl query param
+      const storedRedirect = typeof window !== 'undefined' ? localStorage.getItem('redirectAfterLogin') : null;
+      const searchParams = new URLSearchParams(window.location.search);
+      const returnUrl = searchParams.get('returnUrl');
+      
+      // Determine where to redirect
+      let redirectPath = '/';
+      if (storedRedirect && storedRedirect !== '/login' && storedRedirect !== '/') {
+        redirectPath = storedRedirect;
+      } else if (returnUrl && returnUrl !== '/login') {
+        redirectPath = returnUrl;
+      }
+      
+      // Clear stored redirect
+      localStorage.removeItem('redirectAfterLogin');
+      
+      setTimeout(() => router.push(redirectPath), 2000);
     } catch (err: any) {
       setError(err.message || 'Invalid OTP. Please try again.');
     }

@@ -54,7 +54,7 @@ export default function NotificationsPage() {
     try {
       setIsLoading(true);
       const response = await notificationAPI.getNotifications();
-      setNotifications(response.data.notifications || []);
+      setNotifications(response.data.data.notifications || []);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     } finally {

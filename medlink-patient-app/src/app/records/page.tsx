@@ -83,7 +83,7 @@ export default function RecordsPage() {
         search: debouncedSearch || undefined,
         typeId: selectedType || undefined,
       });
-      setRecords(response.data.records);
+      setRecords(response.data.data);
     } catch (error) {
       console.error('Error fetching records:', error);
     } finally {
@@ -98,7 +98,7 @@ export default function RecordsPage() {
         recordsAPI.getRecordTypes(),
       ]);
       
-      setRecordTypes(typesRes.data.recordTypes);
+      setRecordTypes(typesRes.data.data);
       await fetchRecords();
     } catch (error) {
       console.error('Error fetching initial data:', error);
@@ -158,7 +158,9 @@ export default function RecordsPage() {
   };
 
   const formatDateKey = (dateStr: string) => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return new Date().toISOString().split('T')[0];
     return date.toISOString().split('T')[0];
   };
 

@@ -36,7 +36,7 @@ export default function AccessPage() {
     try {
       setIsLoading(true);
       const response = await accessAPI.getActiveAccess();
-      setAccessList(response.data.accessRecords || []);
+      setAccessList(response.data.data.accessRecords || []);
     } catch (error) {
       console.error('Failed to fetch access records:', error);
     } finally {

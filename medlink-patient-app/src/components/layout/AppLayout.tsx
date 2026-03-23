@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, 
@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   FileText,
-  LogOut
+  LogOut,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -39,10 +40,22 @@ const allNavItems = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
-  const { patient, logout } = useAuth();
+  const { patient, logout, isAuthInitializing, authError, clearAuthError } = useAuth();
+
+  useEffect(() => {
+    if (authError) {
+      localStorage.setItem('redirectAfterLogin', window.location.pathname);
+      const timer = setTimeout(() => {
+        logout();
+        router.push('/login');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [authError, logout, router]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -61,6 +74,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (pathname === '/login' || pathname === '/') {
     return <>{children}</>;
+  }
+
+  if (isAuthInitializing) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mx-auto mb-4" />
+          <p className="text-gray-500 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Authentication Error</h2>
+          <p className="text-gray-500 text-sm mb-4">{authError}</p>
+          <p className="text-xs text-gray-400">Redirecting to login...</p>
+        </div>
+      </div>
+    );
   }
 
   const NavContent = ({ isMobile = false }: { isMobile?: boolean }) => (

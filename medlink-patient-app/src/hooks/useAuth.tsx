@@ -5,10 +5,35 @@ import { Patient } from '@/types';
 import { authAPI, patientAPI } from '@/lib/api';
 import { useSocket } from './useSocket';
 
+const REAUTH_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+const LAST_DASHBOARD_ENTRY_KEY = 'lastDashboardEntry';
+
+export const shouldReauthenticate = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const lastEntry = localStorage.getItem(LAST_DASHBOARD_ENTRY_KEY);
+  if (!lastEntry) return false;
+  const elapsed = Date.now() - parseInt(lastEntry, 10);
+  return elapsed > REAUTH_TIMEOUT_MS;
+};
+
+export const setLastDashboardEntry = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(LAST_DASHBOARD_ENTRY_KEY, Date.now().toString());
+  }
+};
+
+export const clearLastDashboardEntry = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(LAST_DASHBOARD_ENTRY_KEY);
+  }
+};
+
 interface AuthContextType {
   patient: Patient | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAuthInitializing: boolean;
+  authError: string | null;
   insuranceData: InsuranceData | null;
   loginWithPhone: (phone: string) => Promise<void>;
   loginWithPatientId: (patientId: string) => Promise<void>;
@@ -16,6 +41,10 @@ interface AuthContextType {
   logout: () => void;
   refreshProfile: () => Promise<void>;
   saveInsuranceData: (data: InsuranceData) => void;
+  clearAuthError: () => void;
+  shouldReauthenticate: () => boolean;
+  setLastDashboardEntry: () => void;
+  clearLastDashboardEntry: () => void;
 }
 
 interface InsuranceData {
@@ -30,6 +59,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthInitializing, setIsAuthInitializing] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [insuranceData, setInsuranceData] = useState<InsuranceData | null>(null);
   const { joinPatientRoom, leavePatientRoom } = useSocket();
 
@@ -58,29 +89,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = useCallback(async (): Promise<Patient | null> => {
     try {
       const response = await patientAPI.getProfile();
-      return response.data.patient;
-    } catch (error) {
+      return response.data.data.patient;
+    } catch (error: any) {
+      const errorCode = error.response?.data?.error;
+      if (errorCode === 'Token has expired' || errorCode === 'TOKEN_EXPIRED') {
+        const storedPatientId = localStorage.getItem('patientId');
+        if (storedPatientId) {
+          return {
+            id: storedPatientId,
+            patientId: storedPatientId,
+            name: localStorage.getItem('patientName') || 'Patient',
+            phone: localStorage.getItem('patientPhone') || '',
+            createdAt: new Date().toISOString(),
+          } as Patient;
+        }
+      }
       console.error('Failed to fetch profile:', error);
       return null;
     }
   }, []);
 
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
+
   useEffect(() => {
     const initializeAuth = async () => {
+      setIsAuthInitializing(true);
       const token = localStorage.getItem('patientToken');
-      const patientId = localStorage.getItem('patientId');
+      const storedPatientId = localStorage.getItem('patientId');
       
-      if (token && patientId) {
-        const profile = await fetchProfile();
-        if (profile) {
-          setPatient(profile);
-          joinPatientRoom(profile.id);
-        } else {
-          localStorage.removeItem('patientToken');
-          localStorage.removeItem('patientId');
+      if (token && storedPatientId) {
+        try {
+          const profile = await fetchProfile();
+          if (profile) {
+            setPatient(profile);
+            joinPatientRoom(profile.id);
+          }
+        } catch (error) {
+          console.error('Auth initialization error:', error);
         }
       }
       setIsLoading(false);
+      setIsAuthInitializing(false);
     };
 
     initializeAuth();
@@ -124,8 +175,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       localStorage.setItem('patientToken', token);
       localStorage.setItem('patientId', patientData.id);
+      localStorage.setItem('patientName', patientData.name || '');
+      localStorage.setItem('patientPhone', patientData.phone || '');
       localStorage.removeItem('loginMethod');
       localStorage.removeItem('loginIdentifier');
+      
+      localStorage.setItem(LAST_DASHBOARD_ENTRY_KEY, Date.now().toString());
       
       const profile = await fetchProfile();
       setPatient(profile || patientData);
@@ -152,9 +207,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem('patientToken');
     localStorage.removeItem('patientId');
+    localStorage.removeItem('patientName');
+    localStorage.removeItem('patientPhone');
     localStorage.removeItem('pendingPatientId');
     localStorage.removeItem('loginMethod');
     localStorage.removeItem('loginIdentifier');
+    localStorage.removeItem(LAST_DASHBOARD_ENTRY_KEY);
+    localStorage.removeItem('redirectAfterLogin');
     setPatient(null);
     authAPI.logout();
   };
@@ -170,7 +229,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ patient, isAuthenticated: !!patient, isLoading, insuranceData, loginWithPhone, loginWithPatientId, verifyOTP, logout, refreshProfile, saveInsuranceData }}>
+    <AuthContext.Provider value={{ 
+      patient, 
+      isAuthenticated: !!patient, 
+      isLoading, 
+      isAuthInitializing,
+      authError,
+      insuranceData, 
+      loginWithPhone, 
+      loginWithPatientId, 
+      verifyOTP, 
+      logout, 
+      refreshProfile, 
+      saveInsuranceData,
+      clearAuthError,
+      shouldReauthenticate,
+      setLastDashboardEntry,
+      clearLastDashboardEntry
+    }}>
       {children}
     </AuthContext.Provider>
   );

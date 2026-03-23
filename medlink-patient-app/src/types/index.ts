@@ -9,6 +9,8 @@ export interface Patient {
   allergies?: string[];
   chronicDiseases?: string[];
   emergencyContact?: string;
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
   profilePhoto?: string;   // normalized from photoUrl by the backend
   photoUrl?: string;       // raw photoUrl field (also present in response, same value)
   dateOfBirth?: string;    // normalized from dob by the backend (YYYY-MM-DD)
@@ -74,6 +76,7 @@ export interface ConsentRequest {
   specialization: string;
   requestTime: string;
   recordsRequested: string[];
+  duration: number;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
 }
 

@@ -6,13 +6,14 @@ import { Shield, QrCode, Copy, Share2, Bell, AlertCircle, CheckCircle, FileText,
 import { Card, IconCircle } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificationListener } from '@/hooks/useNotificationListener';
-import { consentAPI, accessAPI, notificationAPI, recordsAPI } from '@/lib/api';
+import { consentAPI, accessAPI, notificationAPI, recordsAPI, authAPI } from '@/lib/api';
+import { ReauthModal } from '@/components/auth/ReauthModal';
 import Link from 'next/link';
 import Image from 'next/image';
 import QRCode from 'qrcode';
 
 export default function DashboardPage() {
-  const { patient, logout } = useAuth();
+  const { patient, logout, shouldReauthenticate, setLastDashboardEntry, isAuthInitializing, refreshProfile } = useAuth();
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
@@ -21,6 +22,9 @@ export default function DashboardPage() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [showReauthModal, setShowReauthModal] = useState(false);
+  const [isReauthLoading, setIsReauthLoading] = useState(false);
+  const [reauthError, setReauthError] = useState('');
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -31,11 +35,11 @@ export default function DashboardPage() {
         notificationAPI.getUnreadCount(),
         recordsAPI.getRecords(),
       ]);
-      setPendingRequests(consentRes.data.consentRequests || []);
-      setActiveAccess(accessRes.data.accessRecords || []);
-      setUnreadNotifications(notifRes.data.unreadCount || 0);
+      setPendingRequests(consentRes.data.data.consentRequests || []);
+      setActiveAccess(accessRes.data.data.accessRecords || []);
+      setUnreadNotifications(notifRes.data.data.unreadCount || 0);
       // Support both `total` field and array length
-      const recs = recordsRes.data;
+      const recs = recordsRes.data.data;
       setTotalRecords(
         typeof recs.total === 'number'
           ? recs.total
@@ -71,6 +75,38 @@ export default function DashboardPage() {
       }).then(setQrCodeUrl);
     }
   }, [patient?.patientId]);
+
+  useEffect(() => {
+    if (patient?.id) {
+      if (shouldReauthenticate()) {
+        setShowReauthModal(true);
+      } else {
+        setLastDashboardEntry();
+      }
+    }
+  }, [patient?.id]);
+
+  const handleReauthVerify = async (password: string) => {
+    setIsReauthLoading(true);
+    setReauthError('');
+    try {
+      const response = await authAPI.verifyPassword(password);
+      return {
+        token: response.data.token,
+        patient: response.data.patient,
+      };
+    } catch (error: any) {
+      setReauthError(error.response?.data?.error || 'Invalid password');
+      throw error;
+    } finally {
+      setIsReauthLoading(false);
+    }
+  };
+
+  const handleReauthLogout = () => {
+    logout();
+    window.location.href = '/login';
+  };
 
   const copyPatientId = async () => {
     const id = patient?.patientId;
@@ -127,7 +163,13 @@ export default function DashboardPage() {
     return 'Good Evening';
   };
 
-  if (!patient) return null;
+  if (isAuthInitializing || !patient) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader className="w-6 h-6 animate-spin text-emerald-500" />
+      </div>
+    );
+  }
 
   // Safely resolve photo URL — Next.js <Image> throws "Invalid URL" on null/empty/non-http values
   const rawPhoto = patient.profilePhoto || patient.photoUrl || '';
@@ -338,6 +380,27 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+
+      <ReauthModal
+        isOpen={showReauthModal}
+        onVerify={handleReauthVerify}
+        onLogout={handleReauthLogout}
+        isLoading={isReauthLoading}
+        error={reauthError}
+        onSuccess={async (newToken?: string, patientData?: { name?: string; phone?: string }) => {
+          setLastDashboardEntry();
+          setShowReauthModal(false);
+          if (newToken) {
+            localStorage.setItem('patientToken', newToken);
+          }
+          if (patientData) {
+            localStorage.setItem('patientName', patientData.name || '');
+            localStorage.setItem('patientPhone', patientData.phone || '');
+          }
+          await refreshProfile();
+          fetchDashboardData();
+        }}
+      />
     </div>
   );
 }

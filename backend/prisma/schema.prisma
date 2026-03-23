@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  DOCTOR
+  HOSPITAL_ADMIN
+  SYSTEM_ADMIN
+  NURSE
+}
+
+enum VerificationType {
+  PHONE
+  EMAIL
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String?  @unique
+  phone        String   @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  isLocked     Boolean  @default(false)
+  failedLoginAttempts Int @default(0)
+  lastLogin    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient  Patient?
+  doctor   Doctor?
+  hospital Hospital?
+  nurse    Nurse?
+
+  @@map("users")
+}
+
+model Patient {
+  id               String    @id @default(uuid())
+  patientCode      String    @unique
+  patientIdCard    String?   @unique
+  userId           String    @unique
+  abhaAddress      String?   @unique
+  name             String
+  gender           String
+  dob              DateTime
+  bloodGroup       String
+  allergies        String[]
+  chronicDiseases  String[]
+  emergencyContact String
+  photoUrl         String?
+  nurseId          String?
+
+  address                      String?
+  emergencyContactName         String?
+  emergencyContactRelationship String?
+  medications                  String[]
+  surgeries                    String[]
+  phone                        String?
+
+  fcmToken               String?
+  guardianName           String?
+  guardianMobile         String?
+  guardianLocation       String?
+  insuranceProvider      String?
+  insuranceCustomerId    String?
+  insuranceType          String?
+  insuranceSupportNumber String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nurse            Nurse?            @relation(fields: [nurseId], references: [id])
+  verificationOTPs VerificationOTP[]
+  notifications    Notification[]
+  blockedHospitals BlockedHospital[]
+  accessRecords    AccessRecord[]
+  consentRequests  ConsentRequest[]
+  patientRecords   PatientRecord[]
+  otpSessions      OTPSession[]
+  auditLogs        AuditLog[]
+  emergencyAccessLogs EmergencyAccessLog[]
+
+  @@map("patients")
+}
+
+model Hospital {
+  id            String  @id @default(uuid())
+  hospitalCode  String  @unique
+  userId        String  @unique
+  name          String
+  facilityType  String
+  ownershipType String
+  managerName   String
+  regNumber     String  @unique
+  address       String
+  verified      Boolean @default(false)
+  createdAt     DateTime @default(now())
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doctors          Doctor[]
+  blockedHospitals BlockedHospital[]
+  accessRecords    AccessRecord[]
+  consentRequests  ConsentRequest[]
+  patientRecords   PatientRecord[]
+
+  @@map("hospitals")
+}
+
+model Doctor {
+  id                  String   @id @default(uuid())
+  doctorCode          String   @unique
+  userId              String   @unique
+  hospitalId          String
+  name                String
+  systemOfMedicine    String
+  stateMedicalCouncil String
+  registrationYear    Int
+  specialty           String
+  licenseNo           String   @unique
+  createdAt           DateTime @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital       Hospital       @relation(fields: [hospitalId], references: [id])
+  accessRecords  AccessRecord[]
+  consentRequests ConsentRequest[]
+  patientRecords PatientRecord[]
+
+  @@map("doctors")
+}
+
+model Nurse {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  nurseCode            String   @unique
+  fullName             String
+  stateNursingCouncil  String
+  registrationNumber   String   @unique
+  nuid                 String?
+  registrationDate     DateTime
+  licenseExpiryDate    DateTime
+  qualification        String
+  createdAt            DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  patients Patient[]
+
+  @@map("nurses")
+}
+
+model VerificationOTP {
+  id          String           @id @default(uuid())
+  target      String
+  type        VerificationType
+  otpHash     String
+  attempts    Int              @default(0)
+  maxAttempts Int              @default(5)
+  verified    Boolean          @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+  patientId   String?
+  patient     Patient? @relation(fields: [patientId], references: [id])
+
+  @@index([target, type])
+  @@map("verification_otps")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actorRole  Role
+  action     String
+  targetId   String?
+  targetType String?
+  ipAddress  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  description String?
+  userAgent   String?
+
+  patient Patient? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model EmergencyAccessLog {
+  id         String   @id @default(uuid())
+  patientId  String
+  doctorId   String
+  hospitalId String
+  reason     String
+  accessedAt DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("emergency_access_logs")
+}
+
+model OTPSession {
+  id          String    @id @default(uuid())
+  patientId   String
+  otpHash     String
+  status      String    @default("PENDING")
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  endedAt     DateTime?
+  doctorName  String?
+  hospitalName String?
+  createdAt   DateTime  @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@index([patientId, status])
+  @@map("otp_sessions")
+}
+
+model Notification {
+  id           String    @id @default(uuid())
+  patientId    String
+  type         String
+  title        String
+  message      String
+  doctorName   String?
+  hospitalName String?
+  accessTime   DateTime?
+  read         Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@map("notifications")
+}
+
+model BlockedHospital {
+  id         String   @id @default(uuid())
+  patientId  String
+  hospitalId String
+  blockedAt  DateTime @default(now())
+
+  patient  Patient  @relation(fields: [patientId], references: [id])
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@unique([patientId, hospitalId])
+  @@map("blocked_hospitals")
+}
+
+model AccessRecord {
+  id               String   @id @default(uuid())
+  patientId        String
+  doctorId         String
+  hospitalId       String
+  accessStartTime  DateTime @default(now())
+  accessExpiryTime DateTime
+  recordsViewed    String   @default("[]")
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  patient  Patient  @relation(fields: [patientId], references: [id])
+  doctor   Doctor   @relation(fields: [doctorId], references: [id])
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@map("access_records")
+}
+
+model ConsentRequest {
+  id               String    @id @default(uuid())
+  patientId        String
+  doctorId          String
+  hospitalId        String
+  recordsRequested String    @default("[]")
+  status           String    @default("PENDING")
+  duration         Int       @default(24)
+  otp              String?
+  otpExpiresAt     DateTime?
+  requestTime      DateTime  @default(now())
+  responseTime     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  patient  Patient  @relation(fields: [patientId], references: [id])
+  doctor   Doctor   @relation(fields: [doctorId], references: [id])
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+
+  @@map("consent_requests")
+}
+
+model MedicalRecordType {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+
+  patientRecords PatientRecord[]
+
+  @@map("medical_record_types")
+}
+
+model PatientRecord {
+  id           String   @id @default(uuid())
+  patientId    String
+  recordTypeId String
+  title        String
+  description  String?
+  fileUrl      String?
+  date         DateTime
+  hospitalId   String?
+  doctorId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  patient    Patient           @relation(fields: [patientId], references: [id])
+  recordType MedicalRecordType @relation(fields: [recordTypeId], references: [id])
+  hospital   Hospital?         @relation(fields: [hospitalId], references: [id])
+  doctor     Doctor?           @relation(fields: [doctorId], references: [id])
+
+  @@index([patientId])
+  @@index([date])
+  @@map("patient_records")
+}

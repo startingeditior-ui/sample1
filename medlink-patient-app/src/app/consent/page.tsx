@@ -36,9 +36,9 @@ export default function ConsentPage() {
     try {
       setIsLoading(true);
       const response = await consentAPI.getPendingRequests();
-      setPendingRequests(response.data.consentRequests || []);
-      if (response.data.consentRequests?.length > 0 && !selectedRequest) {
-        setSelectedRequest(response.data.consentRequests[0]);
+      setPendingRequests(response.data.data.consentRequests || []);
+      if (response.data.data.consentRequests?.length > 0 && !selectedRequest) {
+        setSelectedRequest(response.data.data.consentRequests[0]);
         setStep('detail');
       }
     } catch (error) {
