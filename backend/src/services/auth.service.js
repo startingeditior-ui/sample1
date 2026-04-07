@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { generateOTP, hashOTP, verifyOTP: verifyOTPUtil, getOTPExpiry } = require('../utils/otp.utils');
+const { sendOTP } = require('../services/sms.service');
 
 const prisma = new PrismaClient();
 
@@ -54,12 +55,16 @@ const login = async (phone, patientId) => {
     }
   });
 
-  console.log(`OTP for ${phone || patientId}: ${otp}`);
+  if (phone) {
+    const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+    await sendOTP(formattedPhone, otp);
+  } else {
+    console.log(`OTP for ${patientId}: ${otp}`);
+  }
 
   return {
     success: true,
-    message: 'OTP sent successfully',
-    otp: otp
+    message: 'OTP sent successfully'
   };
 };
 
@@ -288,7 +293,8 @@ const requestReauthOTP = async (patientId) => {
       }
     });
 
-    console.log(`Re-auth OTP for ${phone}: ${otp}`);
+    const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+    await sendOTP(formattedPhone, otp);
 
     return {
       success: true,

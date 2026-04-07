@@ -42,9 +42,11 @@ app.use('/api/v1/consent', consentRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 
 app.get('/api/v1/health', (req, res) => {
+  const twilioConnected = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
   res.json({ 
     status: 'OK', 
     service: 'medlink-patient-portal',
+    twilio: twilioConnected ? 'connected' : 'not configured',
     timestamp: new Date().toISOString() 
   });
 });

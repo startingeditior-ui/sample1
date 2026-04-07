@@ -227,3 +227,7 @@ export const otpAPI = {
 export const qrAPI = {
   getQR: () => apiClient.get('/patient/qr'),
 };
+
+export const systemAPI = {
+  healthCheck: () => apiClient.get('/health'),
+};
