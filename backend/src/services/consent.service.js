@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { generateOTP, hashOTP, getOTPExpiry, getRemainingSeconds } = require('../utils/otp.utils');
+const { createAndEmitNotification } = require('../utils/socket.utils');
 
 const prisma = new PrismaClient();
 
@@ -63,7 +64,7 @@ const sendOTP = async (patientId, requestId) => {
     }
   });
 
-  console.log(`Consent OTP: ${otp}`);
+  // OTP generated and stored (will be sent via SMS)
 
   return {
     success: true,
@@ -137,16 +138,13 @@ const approveConsent = async (patientId, requestId, otp, duration = 24) => {
     });
   }
 
-  await prisma.notification.create({
-    data: {
-      patientId,
-      type: 'CONSENT_APPROVED',
-      title: 'Access Granted',
-      message: `You granted access to ${request.hospitalId}`,
-      doctorName: request.doctorId,
-      hospitalName: request.hospitalId,
-      accessTime: now
-    }
+  await createAndEmitNotification(prisma, patientId, {
+    type: 'CONSENT_APPROVED',
+    title: 'Access Granted',
+    message: `You granted access to ${request.hospitalId}`,
+    doctorName: request.doctorId,
+    hospitalName: request.hospitalId,
+    accessTime: now
   });
 
   await createAuditLog({
@@ -182,6 +180,12 @@ const rejectConsent = async (patientId, requestId) => {
       status: 'REJECTED',
       responseTime: new Date()
     }
+  });
+
+  await createAndEmitNotification(prisma, patientId, {
+    type: 'CONSENT_REJECTED',
+    title: 'Access Denied',
+    message: `You denied access request from ${request.hospitalId}`
   });
 
   await createAuditLog({

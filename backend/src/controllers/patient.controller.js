@@ -1,6 +1,8 @@
 const {
   getPatientProfile,
   updatePatientProfile,
+  getPatientInsurance,
+  updatePatientInsurance,
   getEmergencyData,
   getRecordTypes,
   getMedicalRecords,
@@ -265,9 +267,41 @@ const setPasswordController = async (req, res, next) => {
   }
 };
 
+const getInsurance = async (req, res, next) => {
+  try {
+    const patientId = req.user.patientId;
+    const result = await getPatientInsurance(patientId);
+
+    if (!result.success) {
+      return res.status(result.statusCode).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateInsurance = async (req, res, next) => {
+  try {
+    const patientId = req.user.patientId;
+    const result = await updatePatientInsurance(patientId, req.body);
+
+    if (!result.success) {
+      return res.status(result.statusCode).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
+  getInsurance,
+  updateInsurance,
   getEmergencyData: getEmergencyDataController,
   getRecordTypes: getRecordTypesController,
   listRecords,

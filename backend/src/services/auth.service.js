@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { generateOTP, hashOTP, verifyOTP: verifyOTPUtil, getOTPExpiry } = require('../utils/otp.utils');
 const { sendOTP } = require('../services/sms.service');
+const { createAndEmitNotification } = require('../utils/socket.utils');
 
 const prisma = new PrismaClient();
 
@@ -179,13 +180,10 @@ const sendLoginNotification = async (patientId) => {
       return { success: false, error: 'Patient not found', statusCode: 404 };
     }
 
-    await prisma.notification.create({
-      data: {
-        patientId,
-        type: 'LOGIN',
-        title: 'New Login',
-        message: `Your account was logged in at ${new Date().toLocaleString()}`
-      }
+    await createAndEmitNotification(prisma, patientId, {
+      type: 'LOGIN',
+      title: 'New Login',
+      message: `Your account was logged in at ${new Date().toLocaleString()}`
     });
 
     return { success: true, message: 'Login notification sent' };

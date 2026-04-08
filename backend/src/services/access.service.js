@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { createAndEmitNotification } = require('../utils/socket.utils');
 
 const prisma = new PrismaClient();
 
@@ -103,6 +104,12 @@ const revokeAccess = async (patientId, accessId) => {
     metadata: { accessId }
   });
 
+  await createAndEmitNotification(prisma, patientId, {
+    type: 'ACCESS_REVOKED',
+    title: 'Access Revoked',
+    message: 'You have revoked access from a healthcare provider'
+  });
+
   return { success: true, message: 'Access revoked successfully' };
 };
 
@@ -121,11 +128,19 @@ const blockHospital = async (patientId, hospitalId) => {
     data: { patientId, hospitalId }
   });
 
+  const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId } });
+
   await createAuditLog({
     patientId,
     action: 'HOSPITAL_BLOCKED',
     description: 'Patient blocked a hospital',
     metadata: { hospitalId }
+  });
+
+  await createAndEmitNotification(prisma, patientId, {
+    type: 'HOSPITAL_BLOCKED',
+    title: 'Hospital Blocked',
+    message: `You have blocked ${hospital?.name || 'a hospital'} from accessing your records`
   });
 
   return { success: true, message: 'Hospital blocked successfully' };
@@ -151,6 +166,14 @@ const unblockHospital = async (patientId, hospitalId) => {
     action: 'HOSPITAL_UNBLOCKED',
     description: 'Patient unblocked a hospital',
     metadata: { hospitalId }
+  });
+
+  const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId } });
+
+  await createAndEmitNotification(prisma, patientId, {
+    type: 'HOSPITAL_UNBLOCKED',
+    title: 'Hospital Unblocked',
+    message: `${hospital?.name || 'Hospital'} is now allowed to access your records`
   });
 
   return { success: true, message: 'Hospital unblocked successfully' };

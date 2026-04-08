@@ -3,19 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { User, Phone, Mail, Calendar, MapPin, Droplet, AlertTriangle, PhoneCall, LogOut, Shield, CreditCard, Pencil, Lock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { User, Phone, Mail, Calendar, MapPin, Droplet, AlertTriangle, PhoneCall, LogOut, Shield, Pencil, Lock, CheckCircle, AlertCircle, Loader2, ChevronRight, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, Input } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
 import { patientAPI } from '@/lib/api';
 import Image from 'next/image';
-
-interface InsuranceData {
-  insuranceProvider?: string;
-  insuranceCustomerId?: string;
-  insuranceType?: string;
-  insuranceSupportNumber?: string;
-}
+import Link from 'next/link';
 
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
@@ -33,15 +27,8 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { patient, logout, insuranceData, saveInsuranceData, isAuthInitializing } = useAuth();
+  const { patient, logout, isAuthInitializing } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [insurance, setInsurance] = useState<InsuranceData>({
-    insuranceProvider: '',
-    insuranceCustomerId: '',
-    insuranceType: '',
-    insuranceSupportNumber: '',
-  });
-  const [saved, setSaved] = useState(false);
   
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -50,25 +37,6 @@ export default function ProfilePage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
-
-  useEffect(() => {
-    if (insuranceData) setInsurance(insuranceData);
-  }, [insuranceData]);
-
-  const handleInsuranceChange = (field: keyof InsuranceData, value: string) => {
-    setInsurance((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSaveInsurance = async () => {
-    try {
-      await saveInsuranceData(insurance);
-      setSaved(true);
-      setIsEditing(false);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      console.error('Failed to save insurance:', err);
-    }
-  };
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,65 +146,22 @@ export default function ProfilePage() {
         </Card>
       </motion.div>
 
-      {/* Insurance Information */}
+      {/* Insurance Link Card */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26 }}>
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-800">Insurance Information</h3>
-            {!isEditing && (
-              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="text-emerald-600 hover:bg-emerald-50">
-                <Pencil className="w-4 h-4 mr-1.5" />
-                Edit
-              </Button>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <Input
-              label="Insurance Provider"
-              value={insurance.insuranceProvider || ''}
-              onChange={(e) => handleInsuranceChange('insuranceProvider', e.target.value)}
-              disabled={!isEditing}
-              icon={<CreditCard className="w-4 h-4" />}
-              placeholder="e.g., ABC Insurance Co."
-            />
-            <Input
-              label="Customer ID / Policy Number"
-              value={insurance.insuranceCustomerId || ''}
-              onChange={(e) => handleInsuranceChange('insuranceCustomerId', e.target.value)}
-              disabled={!isEditing}
-              icon={<CreditCard className="w-4 h-4" />}
-              placeholder="e.g., POL-123456789"
-            />
-            <Input
-              label="Insurance Type"
-              value={insurance.insuranceType || ''}
-              onChange={(e) => handleInsuranceChange('insuranceType', e.target.value)}
-              disabled={!isEditing}
-              icon={<CreditCard className="w-4 h-4" />}
-              placeholder="e.g., Health, Life"
-            />
-            <Input
-              label="Support Number"
-              value={insurance.insuranceSupportNumber || ''}
-              onChange={(e) => handleInsuranceChange('insuranceSupportNumber', e.target.value)}
-              disabled={!isEditing}
-              icon={<Phone className="w-4 h-4" />}
-              placeholder="e.g., 1-800-XXX-XXXX"
-            />
-
-            {isEditing && (
-              <div className="flex gap-3 pt-2">
-                <Button variant="filled" className="flex-1" onClick={handleSaveInsurance}>
-                  {saved ? '✓ Saved' : 'Save Insurance'}
-                </Button>
-                <Button variant="outlined" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
+        <Link href="/insurance">
+          <Card className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                <Shield className="w-5 h-5 text-purple-600" />
               </div>
-            )}
-          </div>
-        </Card>
+              <div>
+                <p className="font-medium text-gray-800">Insurance</p>
+                <p className="text-sm text-gray-500">Manage your health insurance</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </Card>
+        </Link>
       </motion.div>
 
       {/* Set Password */}

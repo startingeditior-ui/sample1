@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { generateOTP, hashOTP, verifyOTP, getOTPExpiry, getRemainingSeconds } = require('../utils/otp.utils');
+const { createAndEmitNotification } = require('../utils/socket.utils');
 
 const prisma = new PrismaClient();
 
@@ -29,6 +30,8 @@ const getPatientProfile = async (patientId) => {
       insuranceCustomerId: true,
       insuranceType: true,
       insuranceSupportNumber: true,
+      insuranceExpiryDate: true,
+      insuranceSumInsured: true,
       createdAt: true,
       user: {
         select: {
@@ -82,6 +85,8 @@ const getPatientProfile = async (patientId) => {
         insuranceCustomerId: patient.insuranceCustomerId,
         insuranceType: patient.insuranceType,
         insuranceSupportNumber: patient.insuranceSupportNumber,
+        insuranceExpiryDate: patient.insuranceExpiryDate ? patient.insuranceExpiryDate.toISOString().split('T')[0] : null,
+        insuranceSumInsured: patient.insuranceSumInsured,
         createdAt: patient.createdAt.toISOString()
       }
     }
@@ -106,6 +111,8 @@ const updatePatientProfile = async (patientId, data) => {
   if (data.insuranceCustomerId) updateData.insuranceCustomerId = data.insuranceCustomerId;
   if (data.insuranceType) updateData.insuranceType = data.insuranceType;
   if (data.insuranceSupportNumber) updateData.insuranceSupportNumber = data.insuranceSupportNumber;
+  if (data.insuranceExpiryDate) updateData.insuranceExpiryDate = new Date(data.insuranceExpiryDate);
+  if (data.insuranceSumInsured) updateData.insuranceSumInsured = data.insuranceSumInsured;
 
   await prisma.patient.update({
     where: { id: patientId },
@@ -116,6 +123,12 @@ const updatePatientProfile = async (patientId, data) => {
     patientId,
     action: 'PROFILE_UPDATED',
     description: 'Patient updated their profile'
+  });
+
+  await createAndEmitNotification(prisma, patientId, {
+    type: 'PROFILE_UPDATED',
+    title: 'Profile Updated',
+    message: 'Your profile information has been updated'
   });
 
   return { success: true, message: 'Profile updated successfully' };
@@ -200,6 +213,12 @@ const addPatientRecord = async (patientId, data) => {
     action: 'RECORD_ADDED',
     description: `Added new record: ${data.title}`,
     metadata: { recordId: record.id }
+  });
+
+  await createAndEmitNotification(prisma, patientId, {
+    type: 'RECORD_ADDED',
+    title: 'New Medical Record',
+    message: `A new record "${data.title}" has been added to your profile`
   });
 
   return { success: true, recordId: record.id, message: 'Record added successfully' };
@@ -548,6 +567,65 @@ const getQRData = async (patientId) => {
   };
 };
 
+const getPatientInsurance = async (patientId) => {
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    select: {
+      insuranceProvider: true,
+      insuranceCustomerId: true,
+      insuranceType: true,
+      insuranceSupportNumber: true,
+      insuranceExpiryDate: true,
+      insuranceSumInsured: true
+    }
+  });
+
+  if (!patient) {
+    return { success: false, error: 'Patient not found', statusCode: 404 };
+  }
+
+  return {
+    success: true,
+    data: {
+      insuranceProvider: patient.insuranceProvider,
+      insuranceCustomerId: patient.insuranceCustomerId,
+      insuranceType: patient.insuranceType,
+      insuranceSupportNumber: patient.insuranceSupportNumber,
+      insuranceExpiryDate: patient.insuranceExpiryDate ? patient.insuranceExpiryDate.toISOString().split('T')[0] : null,
+      insuranceSumInsured: patient.insuranceSumInsured
+    }
+  };
+};
+
+const updatePatientInsurance = async (patientId, data) => {
+  const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+  
+  if (!patient) {
+    return { success: false, error: 'Patient not found', statusCode: 404 };
+  }
+
+  const updateData = {};
+  if (data.insuranceProvider !== undefined) updateData.insuranceProvider = data.insuranceProvider || null;
+  if (data.insuranceCustomerId !== undefined) updateData.insuranceCustomerId = data.insuranceCustomerId || null;
+  if (data.insuranceType !== undefined) updateData.insuranceType = data.insuranceType || null;
+  if (data.insuranceSupportNumber !== undefined) updateData.insuranceSupportNumber = data.insuranceSupportNumber || null;
+  if (data.insuranceExpiryDate !== undefined) updateData.insuranceExpiryDate = data.insuranceExpiryDate ? new Date(data.insuranceExpiryDate) : null;
+  if (data.insuranceSumInsured !== undefined) updateData.insuranceSumInsured = data.insuranceSumInsured || null;
+
+  await prisma.patient.update({
+    where: { id: patientId },
+    data: updateData
+  });
+
+  await createAuditLog({
+    patientId,
+    action: 'INSURANCE_UPDATED',
+    description: 'Patient updated their insurance policy'
+  });
+
+  return { success: true, message: 'Insurance updated successfully' };
+};
+
 const createAuditLog = async ({ patientId, action, description, metadata }) => {
   try {
     await prisma.auditLog.create({
@@ -575,8 +653,12 @@ const setPassword = async (patientId, newPassword) => {
       return { success: false, error: 'Patient not found', statusCode: 404 };
     }
 
-    if (newPassword.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters', statusCode: 400 };
+    if (newPassword.length < 8) {
+      return { success: false, error: 'Password must be at least 8 characters', statusCode: 400 };
+    }
+
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
+      return { success: false, error: 'Password must contain uppercase, lowercase, and number', statusCode: 400 };
     }
 
     const bcrypt = require('bcryptjs');
@@ -603,6 +685,8 @@ const setPassword = async (patientId, newPassword) => {
 module.exports = {
   getPatientProfile,
   updatePatientProfile,
+  getPatientInsurance,
+  updatePatientInsurance,
   getEmergencyData,
   getRecordTypes,
   getMedicalRecords,

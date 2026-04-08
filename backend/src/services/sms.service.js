@@ -22,7 +22,8 @@ const sendSMS = async (to, message) => {
 };
 
 const sendOTP = async (phoneNumber, otp) => {
-  console.log(`[DEMO] OTP for ${phoneNumber}: ${otp}`);
+  // In demo mode, OTP is handled by the caller for logging if needed
+  // Production: OTP sent via Twilio API
   const message = `Your MedLinkID verification code is: ${otp}. This code expires in 10 minutes.`;
   return await sendSMS(phoneNumber, message);
 };

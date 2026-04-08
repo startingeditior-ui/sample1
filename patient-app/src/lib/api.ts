@@ -154,6 +154,12 @@ export const patientAPI = {
   setPassword: (password: string) => apiClient.post('/patient/set-password', { password }),
 };
 
+export const insuranceAPI = {
+  getInsurance: () => apiClient.get('/patient/insurance'),
+  saveInsurance: (data: Record<string, unknown>) => apiClient.put('/patient/insurance', data),
+  deleteInsurance: () => apiClient.delete('/patient/insurance'),
+};
+
 export const accessAPI = {
   getActiveAccess: () => apiClient.get('/access/active'),
   getAccessLogs: (params?: { page?: number; limit?: number }) => {

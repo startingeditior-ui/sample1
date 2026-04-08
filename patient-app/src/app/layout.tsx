@@ -6,6 +6,7 @@ import { SocketProvider } from "@/hooks/useSocket";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TitleUpdater } from "@/components/TitleUpdater";
 import { FcmProvider } from "@/components/FcmProvider";
+import { ToastProvider } from "@/components/ToastProvider";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -33,13 +34,15 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <TitleUpdater />
         <SocketProvider>
-          <AuthProvider>
-            <FcmProvider>
-              <AppLayout>
-                {children}
-              </AppLayout>
-            </FcmProvider>
-          </AuthProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <FcmProvider>
+                <AppLayout>
+                  {children}
+                </AppLayout>
+              </FcmProvider>
+            </AuthProvider>
+          </ToastProvider>
         </SocketProvider>
       </body>
     </html>

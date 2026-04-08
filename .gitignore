@@ -27,16 +27,16 @@ coverage/
 .next/
 out/
 build/
-medlink-patient-app/.next/
-medlink-patient-app/out/
-medlink-patient-app/build/
+patient-app/.next/
+patient-app/out/
+patient-app/build/
 
 # ===========================================
 # Node.js Backend
 # ===========================================
 dist/
-medlink-backend/dist/
-medlink-backend/build/
+backend/dist/
+backend/build/
 *.tsbuildinfo
 
 # ===========================================
@@ -48,11 +48,10 @@ medlink-backend/build/
 .env.test.local
 .env.production.local
 .env.staging
-.env.example
 *.secret
 *.pem
-medlink-backend/.env
-medlink-patient-app/.env.local
+backend/.env
+patient-app/.env.local
 
 # ===========================================
 # Database Files

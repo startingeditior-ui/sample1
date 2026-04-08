@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, QrCode, Copy, Share2, Bell, AlertCircle, CheckCircle, FileText, Loader, User } from 'lucide-react';
+import { Shield, QrCode, Copy, Share2, Bell, AlertCircle, CheckCircle, FileText, Loader, User, ShieldCheck } from 'lucide-react';
 import { Card, IconCircle } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificationListener } from '@/hooks/useNotificationListener';
@@ -193,7 +193,7 @@ export default function DashboardPage() {
     { icon: AlertCircle, label: 'Emergency', href: '/emergency', bg: 'bg-red-100', iconColor: 'text-red-600' },
     { icon: FileText, label: 'Records', href: '/records', bg: 'bg-blue-100', iconColor: 'text-blue-600' },
     { icon: Shield, label: 'Access', href: '/access', bg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
-    { icon: Bell, label: 'Alerts', href: '/notifications', bg: 'bg-orange-100', iconColor: 'text-orange-600' },
+    { icon: ShieldCheck, label: 'Insurance', href: '/insurance', bg: 'bg-purple-100', iconColor: 'text-purple-600' },
   ];
 
   return (

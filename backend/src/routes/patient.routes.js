@@ -1,8 +1,11 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth.middleware');
+const { otpLimiter, apiLimiter } = require('../middleware/rateLimiter.middleware');
 const {
   getProfile,
   updateProfile,
+  getInsurance,
+  updateInsurance,
   getEmergencyData,
   listRecords,
   getRecord,
@@ -24,6 +27,10 @@ router.get('/profile', authMiddleware, getProfile);
 
 router.put('/profile', authMiddleware, updateProfile);
 
+router.get('/insurance', authMiddleware, getInsurance);
+
+router.put('/insurance', authMiddleware, updateInsurance);
+
 router.get('/emergency-data', authMiddleware, getEmergencyData);
 
 router.get('/records', authMiddleware, listRecords);
@@ -38,7 +45,7 @@ router.put('/records/:recordId', authMiddleware, updateRecord);
 
 router.delete('/records/:recordId', authMiddleware, deleteRecord);
 
-router.post('/otp/generate', authMiddleware, generateOTP);
+router.post('/otp/generate', authMiddleware, otpLimiter, generateOTP);
 
 router.get('/otp/status', authMiddleware, getOTPStatus);
 

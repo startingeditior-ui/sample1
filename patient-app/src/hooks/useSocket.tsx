@@ -19,6 +19,7 @@ interface SocketContextType {
   onRecordAdded: (callback: (data: any) => void) => void;
   onRecordUpdated: (callback: (data: any) => void) => void;
   onRecordDeleted: (callback: (data: any) => void) => void;
+  onNotificationNew: (callback: (data: any) => void) => void;
   removeAllListeners: () => void;
 }
 
@@ -167,6 +168,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   }, [socket]);
 
+  const onNotificationNew = useCallback((callback: (data: any) => void) => {
+    if (socket) {
+      socket.on('notification:new', callback);
+    }
+  }, [socket]);
+
   const removeAllListeners = useCallback(() => {
     if (socket) {
       socket.removeAllListeners();
@@ -191,6 +198,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         onRecordAdded,
         onRecordUpdated,
         onRecordDeleted,
+        onNotificationNew,
         removeAllListeners,
       }}
     >

@@ -1,3 +1,12 @@
+export interface InsuranceData {
+  insuranceProvider?: string;
+  insuranceCustomerId?: string;
+  insuranceType?: string;
+  insuranceSupportNumber?: string;
+  insuranceExpiryDate?: string;
+  insuranceSumInsured?: string;
+}
+
 export interface Patient {
   id: string;
   patientId: string;       // normalized from patientCode by the backend
@@ -24,6 +33,8 @@ export interface Patient {
   insuranceCustomerId?: string;
   insuranceType?: string;
   insuranceSupportNumber?: string;
+  insuranceExpiryDate?: string;
+  insuranceSumInsured?: string;
   createdAt: string;
 }
 

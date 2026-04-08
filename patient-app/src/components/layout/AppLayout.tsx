@@ -16,7 +16,8 @@ import {
   X,
   FileText,
   LogOut,
-  Loader2
+  Loader2,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -24,7 +25,7 @@ const navItems = [
   { href: '/dashboard', label: 'Home', icon: Home },
   { href: '/records', label: 'Records', icon: FileText },
   { href: '/access', label: 'Access', icon: Shield },
-  { href: '/notifications', label: 'Alerts', icon: Bell },
+  { href: '/insurance', label: 'Insurance', icon: ShieldCheck },
   { href: '/profile', label: 'Profile', icon: User },
 ];
 
@@ -34,6 +35,7 @@ const allNavItems = [
   { href: '/access', label: 'Access', icon: Shield },
   { href: '/logs', label: 'Logs', icon: Clock },
   { href: '/notifications', label: 'Alerts', icon: Bell },
+  { href: '/insurance', label: 'Insurance', icon: ShieldCheck },
   { href: '/profile', label: 'Profile', icon: User },
   { href: '/emergency', label: 'Emergency', icon: AlertCircle },
 ];

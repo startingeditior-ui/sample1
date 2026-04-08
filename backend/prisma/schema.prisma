@@ -72,6 +72,8 @@ model Patient {
   insuranceCustomerId    String?
   insuranceType          String?
   insuranceSupportNumber String?
+  insuranceExpiryDate    DateTime?
+  insuranceSumInsured    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

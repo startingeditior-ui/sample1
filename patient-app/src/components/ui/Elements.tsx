@@ -137,3 +137,98 @@ export function EmptyState({ icon, title, description, className = '' }: EmptySt
     </div>
   );
 }
+
+// ─── Toast ─────────────────────────────────────────────────────────────────────
+
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
+
+export interface ToastData {
+  id: string;
+  type: ToastType;
+  title: string;
+  message?: string;
+}
+
+interface ToastProps {
+  toast: ToastData;
+  onDismiss: (id: string) => void;
+}
+
+const toastConfig = {
+  success: {
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    iconColor: 'text-emerald-600',
+    titleColor: 'text-emerald-800',
+    messageColor: 'text-emerald-700',
+    icon: '✓',
+  },
+  error: {
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    iconColor: 'text-red-600',
+    titleColor: 'text-red-800',
+    messageColor: 'text-red-700',
+    icon: '✕',
+  },
+  warning: {
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    iconColor: 'text-amber-600',
+    titleColor: 'text-amber-800',
+    messageColor: 'text-amber-700',
+    icon: '⚠',
+  },
+  info: {
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    iconColor: 'text-blue-600',
+    titleColor: 'text-blue-800',
+    messageColor: 'text-blue-700',
+    icon: 'ℹ',
+  },
+};
+
+function ToastItem({ toast, onDismiss }: ToastProps) {
+  const config = toastConfig[toast.type];
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 100 }}
+      className={`flex items-start gap-3 p-4 rounded-xl border shadow-lg ${config.bg} ${config.border} min-w-[320px] max-w-[400px]`}
+    >
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${config.iconColor} bg-white`}>
+        <span className="text-sm font-bold">{config.icon}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-semibold ${config.titleColor}`}>{toast.title}</p>
+        {toast.message && (
+          <p className={`text-xs mt-0.5 ${config.messageColor}`}>{toast.message}</p>
+        )}
+      </div>
+      <button
+        onClick={() => onDismiss(toast.id)}
+        className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+      >
+        ✕
+      </button>
+    </motion.div>
+  );
+}
+
+interface ToastContainerProps {
+  toasts: ToastData[];
+  onDismiss: (id: string) => void;
+}
+
+export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
+  return (
+    <div className="fixed top-20 right-4 z-[100] flex flex-col gap-2">
+      {toasts.map((toast) => (
+        <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
+      ))}
+    </div>
+  );
+}
