@@ -18,6 +18,7 @@ export interface InsuranceSummary {
   sumInsured: number;
   totalAvailed: number;
   pendingClaims: number;
+  pendingAmount: number;
   remaining: number;
 }
 
@@ -54,7 +55,6 @@ export interface Patient {
   gender?: string;
   address?: string;
   guardianName?: string;
-  guardianMobile?: string;
   guardianLocation?: string;
   insuranceProvider?: string;
   insuranceCustomerId?: string;

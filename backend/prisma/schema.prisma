@@ -66,7 +66,6 @@ model Patient {
 
   fcmToken               String?
   guardianName           String?
-  guardianMobile         String?
   guardianLocation       String?
   insuranceProvider      String?
   insuranceCustomerId    String?

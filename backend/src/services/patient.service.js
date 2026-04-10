@@ -24,7 +24,6 @@ const getPatientProfile = async (patientId) => {
       allergies: true,
       chronicDiseases: true,
       guardianName: true,
-      guardianMobile: true,
       guardianLocation: true,
       insuranceProvider: true,
       insuranceCustomerId: true,
@@ -79,7 +78,6 @@ const getPatientProfile = async (patientId) => {
         allergies: patient.allergies ? patient.allergies.split(',').map(a => a.trim()).filter(Boolean) : [],
         chronicDiseases: patient.chronicDiseases ? patient.chronicDiseases.split(',').map(c => c.trim()).filter(Boolean) : [],
         guardianName: patient.guardianName,
-        guardianMobile: patient.guardianMobile,
         guardianLocation: patient.guardianLocation,
         insuranceProvider: patient.insuranceProvider,
         insuranceCustomerId: patient.insuranceCustomerId,
@@ -157,7 +155,6 @@ const getEmergencyData = async (patientId) => {
       medications: true,
       phone: true,
       guardianName: true,
-      guardianMobile: true,
       guardianLocation: true
     }
   });
@@ -181,7 +178,6 @@ const getEmergencyData = async (patientId) => {
       medications: patient.medications || [],
       phone: patient.phone,
       guardianName: patient.guardianName,
-      guardianMobile: patient.guardianMobile,
       guardianLocation: patient.guardianLocation
     }
   };
@@ -784,6 +780,10 @@ const getInsuranceSummary = async (patientId) => {
       .reduce((sum, a) => sum + a.amountAvailed, 0);
 
     const pendingClaims = patient.insuranceAvailments.filter(a => a.claimStatus === 'PENDING').length;
+    
+    const pendingAmount = patient.insuranceAvailments
+      .filter(a => a.claimStatus === 'PENDING')
+      .reduce((sum, a) => sum + a.amountAvailed, 0);
 
     return {
       success: true,
@@ -791,6 +791,7 @@ const getInsuranceSummary = async (patientId) => {
         sumInsured: patient.insuranceSumInsured ? parseFloat(patient.insuranceSumInsured) : 0,
         totalAvailed,
         pendingClaims,
+        pendingAmount,
         remaining: (patient.insuranceSumInsured ? parseFloat(patient.insuranceSumInsured) : 0) - totalAvailed
       }
     };

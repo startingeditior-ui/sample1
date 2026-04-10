@@ -60,7 +60,6 @@ async function main() {
       photoUrl:          '/uploads/profiles/kavitha-rajan.jpg',
       address:           '42, Green Park Colony, Anna Nagar, Chennai - 600040',
       guardianName:      'Lakshmi Rajan',
-      guardianMobile:    '9000000099',
       guardianLocation:  'Chennai, Tamil Nadu',
       insuranceProvider: 'Star Health Insurance',
       insuranceCustomerId: 'SHI-2024-785432',

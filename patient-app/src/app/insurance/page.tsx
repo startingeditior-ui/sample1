@@ -614,6 +614,51 @@ export default function InsurancePage() {
         </motion.div>
       )}
 
+      {/* Pending Claims Section */}
+      {hasInsurance && insuranceSummary && insuranceSummary.pendingClaims > 0 && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
+          <Card className="p-5 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100">
+            <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              Pending Claims Details
+            </h3>
+            <div className="bg-white rounded-lg p-3 text-center mb-4">
+              <p className="text-xs text-gray-500 mb-1">Total Pending Amount</p>
+              <p className="text-2xl font-bold text-amber-600">₹{insuranceSummary.pendingAmount.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="space-y-3">
+              {availments.filter(a => a.claimStatus === 'PENDING').map((availment) => (
+                <div key={availment.id} className="border border-amber-100 rounded-lg p-4 bg-white">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                        <Building2 className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">{availment.hospitalName || 'Unknown Hospital'}</p>
+                        <p className="text-xs text-gray-500">{formatDate(availment.dateOfAvailment)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-amber-600">₹{availment.amountAvailed.toLocaleString('en-IN')}</p>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                        PENDING
+                      </span>
+                    </div>
+                  </div>
+                  {availment.reason && (
+                    <div className="mt-2 pt-2 border-t border-amber-50">
+                      <p className="text-xs text-gray-500">Reason:</p>
+                      <p className="text-sm text-gray-700">{availment.reason}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Claims History Section */}
       {hasInsurance && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
@@ -623,10 +668,6 @@ export default function InsurancePage() {
                 <FileQuestion className="w-5 h-5 text-gray-600" />
                 Claims History
               </h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowAddAvailment(true)}>
-                <Plus className="w-4 h-4 mr-1" />
-                Add Claim
-              </Button>
             </div>
 
             {isLoadingAvailments ? (

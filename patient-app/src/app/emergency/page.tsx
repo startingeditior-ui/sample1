@@ -23,7 +23,6 @@ interface EmergencyDataResponse {
   medications: string[];
   phone: string;
   guardianName: string;
-  guardianMobile: string;
   guardianLocation: string;
 }
 
@@ -78,7 +77,6 @@ Chronic Diseases: ${emergencyData.chronicDiseases.join(', ')}
 Emergency / Guardian Contact: ${emergencyData.emergencyContact}
 Name: ${emergencyData.emergencyContactName}
 Relationship: ${emergencyData.emergencyContactRelationship}
-Guardian Mobile: ${emergencyData.guardianMobile}
 Guardian Location: ${emergencyData.guardianLocation}
 
 ${insuranceData?.insuranceProvider ? `Insurance Provider: ${insuranceData.insuranceProvider}` : ''}
@@ -118,7 +116,6 @@ Chronic Diseases: ${emergencyData.chronicDiseases.join(', ')}
 Emergency / Guardian Contact: ${emergencyData.emergencyContact}
 Name: ${emergencyData.emergencyContactName}
 Relationship: ${emergencyData.emergencyContactRelationship}
-Guardian Mobile: ${emergencyData.guardianMobile}
 Guardian Location: ${emergencyData.guardianLocation}
 
 ${insuranceData?.insuranceProvider ? `Insurance Provider: ${insuranceData.insuranceProvider}` : ''}
@@ -172,7 +169,6 @@ Scan QR code or visit MedLink to verify.
     emergencyContactName: patient.emergencyContactName || '',
     emergencyContactRelationship: patient.emergencyContactRelationship || '',
     guardianName: patient.guardianName || 'Not set',
-    guardianMobile: patient.guardianMobile || 'Not set',
     guardianLocation: patient.guardianLocation || 'Not set',
   };
 
@@ -277,12 +273,6 @@ Scan QR code or visit MedLink to verify.
                   <Shield className="w-4 h-4 text-text-outline" />
                   <p className="text-base font-medium text-gray-900">{displayData.emergencyContactRelationship}</p>
                 </div>
-                {displayData.guardianMobile && (
-                  <div className="flex items-center gap-2">
-                    <PhoneCall className="w-4 h-4 text-text-outline" />
-                    <p className="text-base font-medium text-gray-900">Guardian: {displayData.guardianMobile}</p>
-                  </div>
-                )}
                 {displayData.guardianLocation && (
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-text-outline" />

@@ -1,0 +1,1012 @@
+// =============================================================================
+// MEDLINK — MASTER PRISMA SCHEMA
+// =============================================================================
+//
+// PROJECT CONTEXT:
+// MedLink is a medical records access system for low and middle class patients
+// in India. Patients carry a MedLink ID. Any verified doctor can access their
+// full medical history with the patient's OTP consent.
+//
+// TARGET USERS:
+// - Patients  : Walk-in, low/middle class, phone is their only device
+// - Doctors   : Small clinics to medium hospitals, verified via NMC
+// - Nurses    : Work under a hospital, verified via INC
+// - Hospital Admin (Dean) : Manages doctors and nurses in their hospital
+// - System Admin : MedLink internal team (you)
+//
+// CORE RULES THIS SCHEMA ENFORCES:
+// 1. No hard deletes — every table has isDeleted + deletedAt
+// 2. Patient can ONLY read their records — never write or edit
+// 3. Every doctor/nurse edit is logged permanently in audit tables
+// 4. Phone number is the primary identifier for all users (not email)
+// 5. AccessSession handles patient-doctor interaction (no Appointment table)
+// 6. Files: JPEG, PNG, PDF only — max 5MB each — local disk now, S3 later
+// 7. Doctors can work at multiple hospitals — nurses belong to one hospital
+//
+// =============================================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+// Every person in the system has exactly one role
+enum Role {
+  PATIENT
+  DOCTOR
+  NURSE
+  HOSPITAL_ADMIN  // The dean/manager who registered the hospital on MedLink
+  SYSTEM_ADMIN    // MedLink internal admin
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// Stored as enum so UI can show readable labels
+// DO NOT store as plain string like "A+" — inconsistent data guaranteed
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+}
+
+// Types of files a doctor/nurse can upload for a patient
+enum RecordType {
+  PRESCRIPTION
+  LAB_REPORT
+  SCAN          // X-ray, MRI, CT (within 5MB limit)
+  DIAGNOSIS
+  DISCHARGE_SUMMARY
+}
+
+// Lifecycle of a doctor's access to a patient's records
+enum AccessStatus {
+  PENDING_OTP        // Doctor typed MedLink ID, OTP sent, waiting for patient
+  ACTIVE             // OTP verified, doctor has live access
+  ENDED_BY_PATIENT   // Patient tapped "End Session" on their SMS link
+  ENDED_BY_DOCTOR    // Doctor manually ended the session in their portal
+  ENDED_BY_TIMEOUT   // Duration expired (default 8 hours)
+}
+
+// All significant actions recorded in the audit_logs table
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  REGISTER_PATIENT      // Doctor/nurse created a new patient record
+  REGISTER_HOSPITAL
+  VIEW_RECORD           // Doctor/nurse opened a medical record
+  CREATE_RECORD         // New medical file uploaded
+  UPDATE_RECORD         // Existing record edited
+  EMERGENCY_ACCESS      // Doctor accessed patient without OTP
+  SESSION_STARTED       // OTP verified, access granted
+  SESSION_ENDED         // Session closed by any means
+  DOWNLOAD_ID_CARD      // Patient downloaded their digital MedLink ID
+  BLOCK_HOSPITAL        // Patient blocked a hospital
+}
+
+// Type-safe permissions — prevents typos like "PATIENT_EDITT"
+enum Permission {
+  PATIENT_EDIT       // Can edit patient's personal and medical info
+  RECORD_CREATE      // Can upload a new medical file
+  RECORD_EDIT        // Can edit an existing uploaded file's details
+  RECORD_DELETE      // Can soft-delete a record (OFF by default for all)
+  EMERGENCY_ACCESS   // Can access patient without OTP
+  VIEW_ALL_PATIENTS  // Can see all patients (doctors YES, nurses NO by default)
+}
+
+// =============================================================================
+// CER DATABASE
+// =============================================================================
+// This is MedLink's internal copy of the Tamil Nadu government hospital registry.
+// Currently seeded manually as a fake DB.
+// Will be replaced by a real Tamil Nadu DMRHS API call in production.
+//
+// When a hospital dean enters their CER number, we look it up in THIS table.
+// If found → hospital is auto-verified, details auto-filled.
+// If not found → registration is rejected.
+// =============================================================================
+
+model CerDatabase {
+  id            String   @id @default(uuid())
+  cerNumber     String   @unique // e.g. TN/CHN/2023/00456
+  hospitalName  String
+  address       String
+  district      String
+  state         String   @default("Tamil Nadu")
+  facilityType  String   // "Clinic" | "Hospital" | "Nursing Home" | "Dispensary"
+  ownershipType String   // "Private" | "Government" | "Trust" | "Charitable"
+  bedCount      Int?     // Optional — small clinics may not have registered bed count
+  isActive      Boolean  @default(true) // false = license cancelled or expired
+
+  createdAt     DateTime @default(now())
+
+  hospitals     Hospital[] // Which MedLink hospitals were registered using this CER
+
+  @@map("cer_database")
+}
+
+// =============================================================================
+// NMC DATABASE (National Medical Commission)
+// =============================================================================
+// MedLink's internal copy of the NMC registry.
+// Dean/admin enters NMC number → system looks here → confirms doctor is real.
+// Will be replaced by real NMC API call in production.
+// =============================================================================
+
+model NmcDatabase {
+  id                  String    @id @default(uuid())
+  nmcRegNumber        String    @unique  // Format: TNMC20250001
+  fullName            String
+  stateMedicalCouncil String    // "Tamil Nadu Medical Council"
+  specialization      String    // "General Medicine" | "Cardiology" etc.
+  systemOfMedicine    String    // "Allopathy" | "Ayurveda" | "Homeopathy" | "Siddha"
+  registrationYear    Int
+  licenseExpiryDate   DateTime?
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+
+  doctors             Doctor[]
+
+  @@map("nmc_database")
+}
+
+// =============================================================================
+// INC DATABASE (Indian Nursing Council)
+// =============================================================================
+// MedLink's internal copy of the INC registry.
+// Admin enters INC number → system looks here → confirms nurse is real.
+// Will be replaced by real INC API call in production.
+// =============================================================================
+
+model IncDatabase {
+  id                  String    @id @default(uuid())
+  incRegNumber        String    @unique  // Format: TNNC20220001
+  fullName            String
+  stateNursingCouncil String    // "Tamil Nadu Nurses and Midwives Council"
+  qualification       String    // "GNM" | "B.Sc Nursing" | "M.Sc Nursing" | "ANM"
+  registrationDate    DateTime
+  licenseExpiryDate   DateTime
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+
+  nurses              Nurse[]
+
+  @@map("inc_database")
+}
+
+// =============================================================================
+// USERS
+// =============================================================================
+// Central authentication table for every person in the system.
+// Phone is the primary login for all roles.
+// Email is optional — doctors and admins may have it, patients likely won't.
+// One User row → one profile row (Patient, Doctor, Nurse, or Hospital).
+// =============================================================================
+
+model User {
+  id           String    @id @default(uuid())
+  phone        String    @unique   // Primary login — everyone has a phone
+  email        String?   @unique   // Optional — mainly for doctors and admins
+  passwordHash String              // bcrypt hash — plain text is NEVER stored
+  role         Role
+  isActive     Boolean   @default(true)   // false = account suspended
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+
+  // Profile relations — only ONE will be populated based on role
+  patient         Patient?
+  doctor          Doctor?
+  nurse           Nurse?
+  hospital        Hospital?        // Populated for HOSPITAL_ADMIN role
+
+  // Security relations
+  refreshTokens   RefreshToken[]
+  failedLogins    FailedLoginAttempt[]
+  activationToken ActivationToken?     // For doctor/nurse account activation
+
+  @@map("users")
+}
+
+// =============================================================================
+// HOSPITALS
+// =============================================================================
+// Created when a hospital dean enters a valid CER number.
+// Details are auto-filled from CerDatabase — dean does not type them manually.
+// The dean's User account = the HOSPITAL_ADMIN for this hospital.
+// After verification, the dean can add doctors and nurses.
+// =============================================================================
+
+model Hospital {
+  id           String      @id @default(uuid())
+  hospitalCode String      @unique  // Format: MLHP-YYYY-XXXX — generated by app at registration
+
+  // Dean's account — this user is the HOSPITAL_ADMIN
+  userId       String      @unique
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // CER verification link
+  cerNumber    String      @unique  // Stored directly for fast lookup
+  cerDatabaseId String
+  cerDatabase  CerDatabase @relation(fields: [cerDatabaseId], references: [id])
+
+  // Auto-filled from CerDatabase at registration — not entered by dean
+  name         String
+  address      String
+  district     String
+  state        String
+  facilityType String       // "Clinic" | "Hospital" | "Nursing Home"
+  ownershipType String      // "Private" | "Government" | "Trust"
+
+  // Optional contact (dean can fill this after registration)
+  phone        String?
+
+  // How long a doctor's access session lasts at this hospital
+  // Default is 8 hours. Dean can change this.
+  accessDurationHours Int   @default(8)
+
+  // Verification status — set to true automatically when CER matched
+  isVerified   Boolean     @default(true)
+  verifiedAt   DateTime    @default(now())
+
+  // Solo clinic support
+  adminIsAlsoDoctor   Boolean  @default(false)  // true = admin IS also the doctor
+  adminDoctorId       String?
+  adminDoctor         Doctor?    @relation("HospitalAdminDoctor", fields: [adminDoctorId], references: [id])
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  isDeleted    Boolean     @default(false)
+  deletedAt    DateTime?
+
+  // Relations
+  doctors           Doctor[]   // One doctor belongs to one hospital (removed DoctorHospital junction)
+  nurses            Nurse[]            // Nurses who belong to this hospital
+  accessSessions    AccessSession[]
+  medicalRecords    MedicalRecord[]
+  auditLogs         AuditLog[]
+  blockedByPatients BlockedHospital[]
+  permissionConfigs PermissionConfig[] // Hospital-specific permission overrides
+
+  @@map("hospitals")
+}
+
+// =============================================================================
+// SPECIALIZATIONS
+// =============================================================================
+// Reference table seeded by system admin.
+// Doctors pick their specialization from this list.
+// =============================================================================
+
+model Specialization {
+  id        String   @id @default(uuid())
+  name      String   @unique // "General Medicine" | "Cardiology" | "Pediatrics" etc.
+  createdAt DateTime @default(now())
+
+  doctors   Doctor[]
+
+  @@map("specializations")
+}
+
+// =============================================================================
+// DOCTORS
+// =============================================================================
+// Added by a Hospital Admin. Never self-registered.
+// Verified automatically against NMC (National Medical Commission) database.
+// A doctor can work at multiple hospitals (see DoctorHospital junction table).
+// Account is inactive until doctor clicks the SMS activation link.
+// =============================================================================
+
+model Doctor {
+  id           String    @id @default(uuid())
+  doctorCode   String    @unique  // Format: MLDR-YYYY-XXXX — generated by app
+
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Identity
+  name         String
+  phone        String    @unique  // SMS activation link is sent here by hospital admin
+
+  // Medical Council Verification
+  // These fields are entered by hospital admin, then verified against NMC
+  nmcRegNumber        String    @unique  // National Medical Commission registration number
+  stateMedicalCouncil String             // e.g. "Tamil Nadu Medical Council"
+  systemOfMedicine    String             // "Allopathy" | "Ayurveda" | "Homeopathy" | "Siddha"
+  registrationYear    Int
+  licenseExpiryDate   DateTime?          // Optional — not all councils set an expiry date
+
+  // Verification result — set automatically after NMC check
+  nmcVerified    Boolean   @default(false)
+  nmcVerifiedAt  DateTime?
+
+  // Specialization — optional for general practitioners
+  specializationId String?
+  specialization   Specialization? @relation(fields: [specializationId], references: [id])
+
+  // Which hospital admin added this doctor
+  addedByHospitalId String  // Stored as string — no FK constraint (hospital could be deleted later)
+
+  // Account activation — set when doctor uses the SMS link to set password
+  activatedAt    DateTime?
+
+  // Security — set when too many failed login attempts
+  lockedUntil    DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  isDeleted      Boolean   @default(false)
+  deletedAt      DateTime?
+
+  // One doctor = one hospital (REQUIRED, not nullable)
+  hospitalId            String
+  hospital              Hospital                @relation(fields: [hospitalId], references: [id])
+
+  // NMC verification tracking
+  nmcDatabaseId         String?
+  nmcDatabase           NmcDatabase?            @relation(fields: [nmcDatabaseId], references: [id])
+
+  // Relations
+  ownedHospitals        Hospital[]              @relation("HospitalAdminDoctor")
+  accessSessions        AccessSession[]
+  patientsRegistered    Patient[]               @relation("PatientRegisteredByDoctor")
+  uploadedRecords       MedicalRecord[]         @relation("MedicalRecordUploadedByDoctor")
+  patientEdits          PatientEditAudit[]      @relation("PatientEditByDoctor")
+  recordEdits           MedicalRecordEditAudit[] @relation("RecordEditByDoctor")
+  emergencyAccesses     EmergencyAccessLog[]
+  auditLogs             AuditLog[]
+
+  @@map("doctors")
+}
+
+// =============================================================================
+// NURSES
+// =============================================================================
+// Added by a Hospital Admin. Never self-registered.
+// Verified automatically against INC (Indian Nursing Council) database.
+// A nurse belongs to ONE hospital — unlike doctors.
+// Account is inactive until nurse clicks the SMS activation link.
+// =============================================================================
+
+model Nurse {
+  id         String   @id @default(uuid())
+  nurseCode  String   @unique  // Format: MLNR-YYYY-XXXX — generated by app
+
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Identity
+  fullName   String
+  phone      String   @unique  // SMS activation link is sent here
+
+  // Nurses belong to ONE hospital
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+
+  // Nursing Council Verification
+  incRegNumber        String    @unique  // Indian Nursing Council registration number
+  incDatabaseId       String?
+  incDatabase         IncDatabase? @relation(fields: [incDatabaseId], references: [id])
+  stateNursingCouncil String             // e.g. "Tamil Nadu Nurses and Midwives Council"
+  qualification       String             // "GNM" | "B.Sc Nursing" | "M.Sc Nursing" | "ANM"
+  registrationDate    DateTime
+  licenseExpiryDate   DateTime           // Mandatory for nurses — all state councils set this
+
+  // Verification result — set automatically after INC check
+  incVerified    Boolean   @default(false)
+  incVerifiedAt  DateTime?
+
+  // Which hospital admin added this nurse
+  addedByHospitalId String
+
+  // Account activation
+  activatedAt    DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  isDeleted      Boolean   @default(false)
+  deletedAt      DateTime?
+
+  // Relations
+  patientsRegistered Patient[]               @relation("PatientRegisteredByNurse")
+  uploadedRecords    MedicalRecord[]         @relation("MedicalRecordUploadedByNurse")
+  patientEdits       PatientEditAudit[]      @relation("PatientEditByNurse")
+  recordEdits        MedicalRecordEditAudit[] @relation("RecordEditByNurse")
+  auditLogs          AuditLog[]
+
+  @@map("nurses")
+}
+
+// =============================================================================
+// PATIENTS
+// =============================================================================
+// Registered by a doctor or nurse — never self-registered.
+// Phone is their login. They can only READ their records — never edit.
+// Not tied to any hospital — any verified doctor anywhere can access them.
+// Receives MedLink ID via SMS with a digital ID card download link.
+// =============================================================================
+
+model Patient {
+  id          String    @id @default(uuid())
+  patientCode String    @unique  // Format: MLPR-YYYY-XXXX — generated by app
+
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Who registered this patient — exactly one of the two IDs will be set
+  registeredByRole    Role               // DOCTOR or NURSE
+  registeredByDoctorId String?
+  registeredByDoctor  Doctor?            @relation("PatientRegisteredByDoctor", fields: [registeredByDoctorId], references: [id])
+  registeredByNurseId  String?
+  registeredByNurse   Nurse?             @relation("PatientRegisteredByNurse", fields: [registeredByNurseId], references: [id])
+  registeredByName    String             // Cached name — shown to patient in their dashboard
+  registeredAtHospitalId String?         // Which hospital the registration happened at
+
+  // Digital ID card — URL generated after registration, sent via SMS
+  idCardUrl   String?
+
+  // ── IDENTITY ─────────────────────────────────────────────────────────────
+  name        String
+  gender      Gender?    // Optional — patient may decline
+  dob         DateTime?  // Optional — some patients don't know exact date
+  bloodGroup  BloodGroup? // Optional — filled if known at registration
+  photoUrl    String?    // Optional — taken with phone camera at clinic
+
+  // ── MEDICAL INFO ──────────────────────────────────────────────────────────
+  // Only doctors and nurses can write these fields.
+  // Patient cannot edit these — ever.
+  // Full history of changes is in patient_edit_audits table.
+  allergies          String[]  @default([]) // e.g. ["Penicillin", "Aspirin"]
+  chronicDiseases    String[]  @default([]) // e.g. ["Type 2 Diabetes", "Hypertension"]
+  currentMedications String[]  @default([]) // e.g. ["Metformin 500mg daily"]
+  pastSurgeries      String[]  @default([]) // e.g. ["Appendectomy - 2019"]
+
+  // ── CONTACT ───────────────────────────────────────────────────────────────
+  address     String?  // Optional — many low-income patients have no formal address
+
+  // ── EMERGENCY CONTACT ─────────────────────────────────────────────────────
+  // Shown during emergency access even without OTP
+  emergencyContactName         String?
+  emergencyContactPhone        String?
+  emergencyContactRelationship String? // "Spouse" | "Parent" | "Sibling" | "Child"
+
+  // ── INSURANCE ─────────────────────────────────────────────────────────────
+  // All optional — most low/middle class patients will not have insurance
+  insuranceProvider      String?
+  insurancePolicyNumber  String?
+  insuranceSupportNumber String?
+
+  // ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────
+  fcmToken    String?  // Firebase Cloud Messaging token for push alerts on phone
+
+  // ── LAST MODIFIED CACHE ───────────────────────────────────────────────────
+  // These 4 fields are updated on every edit for quick dashboard display.
+  // The full detailed history is in patient_edit_audits — these are just cache.
+  lastModifiedAt     DateTime?
+  lastModifiedById   String?
+  lastModifiedByRole Role?
+  lastModifiedByName String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  // Relations
+  accessSessions    AccessSession[]
+  medicalRecords    MedicalRecord[]
+  emergencyAccesses EmergencyAccessLog[]
+  notifications     Notification[]
+  blockedHospitals  BlockedHospital[]
+  verificationOtps  VerificationOTP[]
+  auditLogs         AuditLog[]
+  patientEditAudits PatientEditAudit[]
+
+  @@map("patients")
+}
+
+// =============================================================================
+// ACCESS SESSIONS
+// =============================================================================
+// Created when a doctor types a patient's MedLink ID into their portal.
+// An OTP is sent to the patient's phone.
+// Session becomes ACTIVE when the patient reads the OTP to the doctor.
+//
+// Session ends when ONE of these happens:
+//   1. Patient taps "End Session" on the link in their SMS
+//   2. Doctor manually ends it in their portal
+//   3. Duration expires (hospital.accessDurationHours — default 8 hours)
+//
+// doctorSnapshot is stored as JSON because doctor info (name, hospital)
+// may change in the future — we need to preserve what was true at access time.
+// =============================================================================
+
+model AccessSession {
+  id         String       @id @default(uuid())
+
+  patientId  String
+  patient    Patient      @relation(fields: [patientId], references: [id])
+
+  doctorId   String
+  doctor     Doctor       @relation(fields: [doctorId], references: [id])
+
+  hospitalId String
+  hospital   Hospital     @relation(fields: [hospitalId], references: [id])
+
+  status     AccessStatus @default(PENDING_OTP)
+  isEmergency Boolean     @default(false)  // true = no OTP was required
+
+  // The unique token used in the patient's session management link
+  // Full URL: medlink.in/session/{sessionToken}
+  sessionToken String     @unique          // Random UUID generated at session creation
+
+  // Frozen snapshot of doctor details at the moment of access
+  // This is what appears in the patient's SMS and session page
+  // Example: { "name": "Dr. Priya Sharma", "degree": "MBBS, MD", "hospital": "Apollo Clinic, Tambaram" }
+  doctorSnapshot Json
+
+  // Timing
+  // expiresAt is MANDATORY — set at creation as: now() + hospital.accessDurationHours
+  expiresAt  DateTime               // Never nullable — every session must have an end
+  startedAt  DateTime?              // Set when OTP is verified
+  endedAt    DateTime?              // Set when session closes
+  endedBy    String?                // "PATIENT" | "DOCTOR" | "TIMEOUT"
+
+  createdAt  DateTime     @default(now())
+  isDeleted  Boolean      @default(false)
+  deletedAt  DateTime?
+
+  otpRecord  OTPRecord?
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([status])
+  @@map("access_sessions")
+}
+
+// =============================================================================
+// OTP RECORDS
+// =============================================================================
+// One OTP per AccessSession — linked 1:1.
+// OTP is a 6-digit number. Stored as bcrypt hash — never plain text.
+// No time expiry on the OTP (patient says it when ready).
+// After 3 wrong attempts the session is cancelled to prevent brute force.
+// =============================================================================
+
+model OTPRecord {
+  id              String        @id @default(uuid())
+
+  accessSessionId String        @unique
+  accessSession   AccessSession @relation(fields: [accessSessionId], references: [id], onDelete: Cascade)
+
+  otpHash         String        // bcrypt hash of the 6-digit OTP
+  attempts        Int           @default(0)    // Incremented on each wrong guess
+  maxAttempts     Int           @default(3)    // Session cancelled after this many wrong attempts
+  verified        Boolean       @default(false)
+
+  createdAt       DateTime      @default(now())
+
+  @@map("otp_records")
+}
+
+// =============================================================================
+// EMERGENCY ACCESS LOG
+// =============================================================================
+// When a doctor triggers emergency access (patient is unconscious — no OTP).
+// Any verified doctor in MedLink can trigger this.
+// Only these fields are shown: bloodGroup, allergies, chronicDiseases,
+//   currentMedications, emergencyContactName, emergencyContactPhone.
+// Patient can VIEW this log in their dashboard — cannot flag or dispute.
+// This log is permanent — never deleted.
+// =============================================================================
+
+model EmergencyAccessLog {
+  id         String   @id @default(uuid())
+
+  patientId  String
+  patient    Patient  @relation(fields: [patientId], references: [id])
+
+  doctorId   String
+  doctor     Doctor   @relation(fields: [doctorId], references: [id])
+
+  hospitalId String?  // Optional — emergency may happen outside a registered hospital
+
+  // What fields were shown to the doctor during this emergency access
+  // Always the same 6 fields but stored explicitly for audit completeness
+  fieldsAccessed Json
+  // Value is always:
+  // ["bloodGroup","allergies","chronicDiseases","currentMedications",
+  //  "emergencyContactName","emergencyContactPhone"]
+
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  // Note: No isDeleted here — emergency logs are permanent by design
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@map("emergency_access_logs")
+}
+
+// =============================================================================
+// MEDICAL RECORDS
+// =============================================================================
+// Uploaded by a doctor OR a nurse — never by the patient.
+// Exactly one of uploadedByDoctorId or uploadedByNurseId will be set.
+// File types: JPEG, PNG, PDF only.
+// Max file size: 5MB (5,242,880 bytes) — enforced at application layer.
+// File storage: Local disk now → AWS S3 later (only fileUrl and fileKey change).
+// =============================================================================
+
+model MedicalRecord {
+  id         String     @id @default(uuid())
+
+  patientId  String
+  patient    Patient    @relation(fields: [patientId], references: [id])
+
+  hospitalId String
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id])
+
+  // Who uploaded — exactly one of the two FKs will be non-null
+  uploadedByRole     Role       // DOCTOR or NURSE — stored for quick filtering
+  uploadedByDoctorId String?
+  uploadedByDoctor   Doctor?    @relation("MedicalRecordUploadedByDoctor", fields: [uploadedByDoctorId], references: [id])
+  uploadedByNurseId  String?
+  uploadedByNurse    Nurse?     @relation("MedicalRecordUploadedByNurse", fields: [uploadedByNurseId], references: [id])
+  uploadedByName     String     // Cached name — shown to patient in their records list
+
+  // Record content
+  recordType   RecordType
+  title        String
+  description  String?   // Optional notes about this file
+
+  // File storage
+  // fileUrl  = "/uploads/records/abc123.pdf"  (local now)
+  //            "https://s3.amazonaws.com/medlink/records/abc123.pdf" (later)
+  fileUrl      String
+  fileKey      String     // Unique filename/S3 key — used for deletion
+  fileMimeType String     // "image/jpeg" | "image/png" | "application/pdf"
+  fileSizeBytes Int       // Stored for display and enforcement (max: 5,242,880)
+
+  // Last edit cache — full history is in medical_record_edit_audits
+  lastEditedAt     DateTime?
+  lastEditedById   String?
+  lastEditedByRole Role?
+  lastEditedByName String?
+
+  isDeleted  Boolean    @default(false)
+  deletedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  editAudits MedicalRecordEditAudit[]
+
+  @@index([patientId])
+  @@index([recordType])
+  @@index([hospitalId])
+  @@map("medical_records")
+}
+
+// =============================================================================
+// PATIENT EDIT AUDIT
+// =============================================================================
+// Written every time a doctor or nurse changes any field on a Patient row.
+// Records the old value and new value for every field that changed.
+// This data is PERMANENT — never deleted, never soft-deleted.
+// Shown to the patient in their dashboard as "who last changed my records".
+// =============================================================================
+
+model PatientEditAudit {
+  id        String  @id @default(uuid())
+
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id])
+
+  // Who made the edit — exactly one of the two FKs will be non-null
+  editedByRole     Role     // DOCTOR or NURSE
+  editedByDoctorId String?
+  editedByDoctor   Doctor?  @relation("PatientEditByDoctor", fields: [editedByDoctorId], references: [id])
+  editedByNurseId  String?
+  editedByNurse    Nurse?   @relation("PatientEditByNurse", fields: [editedByNurseId], references: [id])
+  editedByName     String   // Cached for display
+
+  // What changed
+  // fieldChanged examples: "allergies" | "bloodGroup" | "emergencyContactPhone"
+  fieldChanged String
+  oldValue     String? @db.Text  // JSON string for arrays, plain string for scalars
+  newValue     String? @db.Text  // JSON string for arrays, plain string for scalars
+
+  // Context
+  hospitalId String?  // Which hospital the edit was made from
+  ipAddress  String?
+  reason     String?  // Optional — doctor can note why they changed something
+
+  editedAt   DateTime @default(now())  // No updatedAt — audit rows never change
+
+  @@index([patientId])
+  @@index([editedAt])
+  @@index([editedByDoctorId])
+  @@index([editedByNurseId])
+  @@map("patient_edit_audits")
+}
+
+// =============================================================================
+// MEDICAL RECORD EDIT AUDIT
+// =============================================================================
+// Written every time a doctor or nurse edits a MedicalRecord row.
+// Separate from PatientEditAudit — different target, same logging principle.
+// Also permanent — never deleted.
+// =============================================================================
+
+model MedicalRecordEditAudit {
+  id              String        @id @default(uuid())
+
+  medicalRecordId String
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id])
+
+  // Who made the edit
+  editedByRole     Role
+  editedByDoctorId String?
+  editedByDoctor   Doctor?  @relation("RecordEditByDoctor", fields: [editedByDoctorId], references: [id])
+  editedByNurseId  String?
+  editedByNurse    Nurse?   @relation("RecordEditByNurse", fields: [editedByNurseId], references: [id])
+  editedByName     String
+
+  // What changed
+  fieldChanged String
+  oldValue     String? @db.Text
+  newValue     String? @db.Text
+
+  // Context
+  hospitalId String?
+  ipAddress  String?
+  reason     String?
+
+  editedAt   DateTime @default(now())
+
+  @@index([medicalRecordId])
+  @@index([editedAt])
+  @@map("medical_record_edit_audits")
+}
+
+// =============================================================================
+// AUDIT LOGS
+// =============================================================================
+// System-wide log of every significant action.
+// Every LOGIN, LOGOUT, RECORD_VIEW, SESSION_START, etc. goes here.
+// Used for compliance, security monitoring, and admin dashboards.
+// =============================================================================
+
+model AuditLog {
+  id         String      @id @default(uuid())
+
+  actorId    String?     // Who performed the action (null for automated system actions)
+  actorRole  Role?
+  action     AuditAction
+
+  targetId   String?     // What the action was performed on
+  targetType String?     // "Patient" | "MedicalRecord" | "AccessSession" | "Hospital"
+
+  description String?    // Human readable description
+  ipAddress   String?
+  userAgent   String?    // Browser/device info
+  metadata    Json?      // Any extra structured data relevant to this action
+
+  // Denormalized FKs — stored for fast dashboard filtering
+  // These may be null depending on the action type
+  patientId  String?
+  patient    Patient?  @relation(fields: [patientId], references: [id])
+  doctorId   String?
+  doctor     Doctor?   @relation(fields: [doctorId], references: [id])
+  nurseId    String?
+  nurse      Nurse?    @relation(fields: [nurseId], references: [id])
+  hospitalId String?
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id])
+
+  createdAt  DateTime  @default(now())
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([hospitalId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// FAILED LOGIN ATTEMPTS
+// =============================================================================
+// Tracks failed logins for ALL user roles — not just doctors.
+// Application should lock the account (set User.isActive = false or
+// Doctor.lockedUntil) after a configurable number of failures.
+// =============================================================================
+
+model FailedLoginAttempt {
+  id          String   @id @default(uuid())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ipAddress   String?
+  attemptedAt DateTime @default(now())
+
+  @@index([userId, attemptedAt])
+  @@map("failed_login_attempts")
+}
+
+// =============================================================================
+// REFRESH TOKENS
+// =============================================================================
+// Stored in DB for JWT refresh token rotation security.
+// When a refresh token is used to get a new access token,
+// the old refresh token is marked revoked and a new one is issued.
+// =============================================================================
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique  // bcrypt hash — actual token is never stored
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  revokedAt DateTime?          // Set when token is used or manually invalidated
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// =============================================================================
+// ACTIVATION TOKENS
+// =============================================================================
+// Generated when a hospital admin adds a new doctor or nurse.
+// Sent to the doctor/nurse via SMS as a one-time activation link.
+// Link format: medlink.in/activate/{token}
+// Doctor/nurse clicks the link and sets their password to activate account.
+// Token is marked used after activation — cannot be reused.
+// =============================================================================
+
+model ActivationToken {
+  id        String   @id @default(uuid())
+
+  userId    String   @unique          // One activation token per user
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token     String   @unique          // Random UUID — used in the activation URL
+  isUsed    Boolean  @default(false)
+  usedAt    DateTime?                 // Set when account is successfully activated
+
+  createdAt DateTime @default(now())
+
+  @@map("activation_tokens")
+}
+
+// =============================================================================
+// VERIFICATION OTPs
+// =============================================================================
+// Used for phone number verification during patient registration.
+// Different from OTPRecord (which is for access sessions).
+// =============================================================================
+
+model VerificationOTP {
+  id          String   @id @default(uuid())
+
+  phone       String                   // The phone number being verified
+  otpHash     String                   // bcrypt hash — plain OTP never stored
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  verified    Boolean  @default(false)
+  expiresAt   DateTime
+
+  // Optional link to the patient being registered
+  patientId   String?
+  patient     Patient? @relation(fields: [patientId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@index([phone])
+  @@map("verification_otps")
+}
+
+// =============================================================================
+// NOTIFICATIONS
+// =============================================================================
+// Sent to patients when significant things happen to their account.
+// Types: "SESSION_STARTED" | "SESSION_ENDED" | "EMERGENCY_ACCESS" |
+//        "RECORD_ADDED" | "RECORD_EDITED"
+// Delivered via SMS (always) and push notification (if fcmToken available).
+// =============================================================================
+
+model Notification {
+  id        String   @id @default(uuid())
+
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+
+  type      String   // See types listed above
+  title     String
+  message   String   // Full notification text
+  read      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([patientId])
+  @@index([read])
+  @@map("notifications")
+}
+
+// =============================================================================
+// BLOCKED HOSPITALS
+// =============================================================================
+// A patient can block a hospital from accessing their records.
+// A blocked hospital's doctors cannot start an AccessSession with this patient.
+// =============================================================================
+
+model BlockedHospital {
+  id         String   @id @default(uuid())
+
+  patientId  String
+  patient    Patient  @relation(fields: [patientId], references: [id])
+
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+
+  blockedAt  DateTime @default(now())
+
+  @@unique([patientId, hospitalId]) // Patient cannot block same hospital twice
+  @@map("blocked_hospitals")
+}
+
+// =============================================================================
+// PERMISSION CONFIGS
+// =============================================================================
+// Configurable role-based permissions per hospital.
+// System-level defaults: hospitalId = null
+// Hospital-specific overrides: hospitalId = that hospital's id
+//
+// DEFAULT PERMISSIONS (seeded at system startup):
+//   DOCTOR : PATIENT_EDIT=true, RECORD_CREATE=true, RECORD_EDIT=true,
+//            RECORD_DELETE=false, EMERGENCY_ACCESS=true, VIEW_ALL_PATIENTS=true
+//   NURSE  : PATIENT_EDIT=true, RECORD_CREATE=true, RECORD_EDIT=false,
+//            RECORD_DELETE=false, EMERGENCY_ACCESS=false, VIEW_ALL_PATIENTS=false
+// =============================================================================
+
+model PermissionConfig {
+  id         String     @id @default(uuid())
+
+  role       Role       // DOCTOR or NURSE
+  permission Permission // Uses the Permission enum — type safe
+  allowed    Boolean    @default(true)
+
+  // null = system-wide default
+  // set to a hospitalId = override for that specific hospital only
+  hospitalId String?
+  hospital   Hospital?  @relation(fields: [hospitalId], references: [id])
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([role, permission, hospitalId]) // One config per role+permission+hospital combo
+  @@map("permission_configs")
+}

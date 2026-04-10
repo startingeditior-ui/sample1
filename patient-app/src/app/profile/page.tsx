@@ -315,7 +315,6 @@ export default function ProfilePage() {
           <InfoRow icon={<PhoneCall className="w-4 h-4" />} label="Contact" value={patient.emergencyContact || ''} />
           <InfoRow icon={<User className="w-4 h-4" />} label="Name" value={patient.emergencyContactName || ''} />
           <InfoRow icon={<Shield className="w-4 h-4" />} label="Relationship" value={patient.emergencyContactRelationship || ''} />
-          <InfoRow icon={<Phone className="w-4 h-4" />} label="Guardian Mobile" value={patient.guardianMobile || ''} />
           <InfoRow icon={<MapPin className="w-4 h-4" />} label="Guardian Location" value={patient.guardianLocation || ''} />
         </Card>
       </motion.div>
