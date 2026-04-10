@@ -60,7 +60,11 @@ const login = async (phone, patientId) => {
     const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
     await sendOTP(formattedPhone, otp);
   } else {
-    console.log(`OTP for ${patientId}: ${otp}`);
+    // In production, OTP would be sent via SMS
+    // For development/testing only
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Auth Dev] OTP for ${patientId}: ${otp}`);
+    }
   }
 
   return {

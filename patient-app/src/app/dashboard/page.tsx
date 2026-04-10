@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, QrCode, Copy, Share2, Bell, AlertCircle, CheckCircle, FileText, Loader, User, ShieldCheck } from 'lucide-react';
+import { Shield, QrCode, Copy, Share2, AlertCircle, CheckCircle, FileText, Loader, User, ShieldCheck } from 'lucide-react';
 import { Card, IconCircle } from '@/components/ui/Elements';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificationListener } from '@/hooks/useNotificationListener';
@@ -50,7 +50,9 @@ export default function DashboardPage() {
           : 0
       );
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
+      // In production, use proper error reporting service
+      // console.error('Failed to fetch dashboard data:', error);
+      setError('Failed to load dashboard data. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -84,6 +86,7 @@ export default function DashboardPage() {
         setLastDashboardEntry();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient?.id]);
 
   const handleReauthVerify = async (password: string) => {
@@ -240,11 +243,11 @@ export default function DashboardPage() {
       {!isLoading && (
         <>
           {/* ── Stats Row ────────────────────────────────────── */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {stats.map((s, i) => (
               <Link key={i} href={s.href}>
                 <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm text-center hover:border-emerald-100 hover:shadow-md transition-all">
-                  <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                  <div className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
                 </div>
               </Link>
@@ -362,12 +365,12 @@ export default function DashboardPage() {
           {/* ── Quick Actions ─────────────────────────────────── */}
           <div>
             <h2 className="section-heading mb-3">Quick Actions</h2>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {quickActions.map((action, idx) => {
                 const Icon = action.icon;
                 return (
                   <Link key={idx} href={action.href}>
-                    <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm text-center hover:border-gray-200 hover:shadow-md transition-all group">
+                    <div className="bg-white rounded-xl p-3 sm:p-4 border border-gray-100 shadow-sm text-center hover:border-gray-200 hover:shadow-md transition-all group">
                       <div className={`icon-circle ${action.bg} mx-auto mb-2 group-hover:scale-105 transition-transform`}>
                         <Icon className={`w-5 h-5 ${action.iconColor}`} />
                       </div>

@@ -7,29 +7,33 @@ async function main() {
   console.log('Starting patient portal seed...');
 
   // ─── 1. Check if patient user already exists ───────────────────────────────
-  const existing = await prisma.user.findUnique({
-    where: { phone: '9000000077' },
+  const existingUser = await prisma.user.findFirst({
+    where: { email: 'kavitha.rajan@test.com' },
   });
 
-  if (existing) {
-    console.log('Seed already exists, updating with additional data...');
+  if (existingUser) {
+    console.log('Seed already exists (email found), updating photo...');
+    await prisma.patient.update({
+      where: { patientCode: 'MLPR-20262922' },
+      data: { photoUrl: '/uploads/profiles/kavitha-rajan.jpg' },
+    });
+    console.log('Photo updated successfully!');
+    return;
   }
+
+  console.log('Creating new patient user...');
 
   // ─── 2. Create User ─────────────────────────────────────────────────────────
   const passwordHash = await bcrypt.hash('TestPass123', 10);
 
-  const user = await prisma.user.upsert({
-    where: { phone: '9000000077' },
-    update: {},
-    create: {
-      email: 'kavitha.rajan@test.com',
-      phone: '9000000077',
-      passwordHash,
-      role: 'PATIENT',
-      isActive: true,
-      isLocked: false,
-      failedLoginAttempts: 0,
-    },
+  const user = await prisma.user.create({
+    email: 'kavitha.rajan@test.com',
+    phone: '9000000077',
+    passwordHash,
+    role: 'PATIENT',
+    isActive: true,
+    isLocked: false,
+    failedLoginAttempts: 0,
   });
 
   console.log(`User created → id: ${user.id}`);
@@ -37,7 +41,7 @@ async function main() {
   // ─── 3. Create Patient ───────────────────────────────────────────────────────
   const patient = await prisma.patient.upsert({
     where: { patientCode: 'MLPR-20262922' },
-    update: {},
+    update: { photoUrl: '/uploads/profiles/kavitha-rajan.jpg' },
     create: {
       userId:            user.id,
       patientCode:       'MLPR-20262922',
@@ -53,7 +57,7 @@ async function main() {
       emergencyContact:  '9000000088',
       emergencyContactName:         'Rajan Kumar',
       emergencyContactRelationship: 'Spouse',
-      photoUrl:          null,
+      photoUrl:          '/uploads/profiles/kavitha-rajan.jpg',
       address:           '42, Green Park Colony, Anna Nagar, Chennai - 600040',
       guardianName:      'Lakshmi Rajan',
       guardianMobile:    '9000000099',

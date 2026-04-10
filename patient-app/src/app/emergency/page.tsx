@@ -24,6 +24,7 @@ interface EmergencyDataResponse {
   phone: string;
   guardianName: string;
   guardianMobile: string;
+  guardianLocation: string;
 }
 
 export default function EmergencyPage() {
@@ -42,11 +43,13 @@ export default function EmergencyPage() {
         if (response.data.success) {
           setEmergencyData(response.data.data);
         }
-      } catch (error) {
-        console.error('Failed to fetch emergency data:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    } catch (error) {
+      // In production, use proper error reporting service
+      // console.error('Failed to fetch emergency data:', error);
+      setError('Failed to load emergency data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
     };
 
     if (patient?.patientId) {
@@ -72,9 +75,10 @@ Blood Group: ${displayData.bloodGroup}
 Allergies: ${emergencyData.allergies.join(', ')}
 Chronic Diseases: ${emergencyData.chronicDiseases.join(', ')}
 
-Emergency Contact: ${emergencyData.emergencyContact}
-Guardian: ${emergencyData.guardianName}
-Guardian Phone: ${emergencyData.guardianMobile}
+Emergency / Guardian Contact: ${emergencyData.emergencyContact}
+Name: ${emergencyData.emergencyContactName}
+Relationship: ${emergencyData.emergencyContactRelationship}
+Guardian Mobile: ${emergencyData.guardianMobile}
 Guardian Location: ${emergencyData.guardianLocation}
 
 ${insuranceData?.insuranceProvider ? `Insurance Provider: ${insuranceData.insuranceProvider}` : ''}
@@ -101,9 +105,9 @@ Scan QR code or visit MedLink to verify.
     }
   };
 
-  const handleCopy = async (text?: string) => {
-    if (!emergencyData) return;
-    const shareData = text || `
+    const handleCopy = async (text?: string) => {
+      if (!emergencyData) return;
+      const shareData = text || `
 🚨 MEDLINK EMERGENCY CARD 🚨
 
 Patient ID: ${patient?.patientId}
@@ -111,9 +115,10 @@ Blood Group: ${displayData.bloodGroup}
 Allergies: ${emergencyData.allergies.join(', ')}
 Chronic Diseases: ${emergencyData.chronicDiseases.join(', ')}
 
-Emergency Contact: ${emergencyData.emergencyContact}
-Guardian: ${emergencyData.guardianName}
-Guardian Phone: ${emergencyData.guardianMobile}
+Emergency / Guardian Contact: ${emergencyData.emergencyContact}
+Name: ${emergencyData.emergencyContactName}
+Relationship: ${emergencyData.emergencyContactRelationship}
+Guardian Mobile: ${emergencyData.guardianMobile}
 Guardian Location: ${emergencyData.guardianLocation}
 
 ${insuranceData?.insuranceProvider ? `Insurance Provider: ${insuranceData.insuranceProvider}` : ''}
@@ -122,34 +127,34 @@ ${insuranceData?.insuranceType ? `Insurance Type: ${insuranceData.insuranceType}
 ${insuranceData?.insuranceSupportNumber ? `Insurance Support: ${insuranceData.insuranceSupportNumber}` : ''}
 
 Scan QR code or visit MedLink to verify.
-    `.trim();
+      `.trim();
 
-    try {
-      await navigator.clipboard.writeText(shareData);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
+      try {
+        await navigator.clipboard.writeText(shareData);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        // Silently fail - copy is optional enhancement
+      }
+    };
 
-  const handleDownload = async () => {
-    if (!cardRef.current) return;
+    const handleDownload = async () => {
+      if (!cardRef.current) return;
 
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(cardRef.current, {
-        background: '#fef2f2',
-      } as any);
-      
-      const link = document.createElement('a');
-      link.download = `medlink-emergency-${patient?.patientId}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch (err) {
-      console.error('Failed to download:', err);
-    }
-  };
+      try {
+        const html2canvas = (await import('html2canvas')).default;
+        const canvas = await html2canvas(cardRef.current, {
+          background: '#fef2f2',
+        } as any);
+        
+        const link = document.createElement('a');
+        link.download = `medlink-emergency-${patient?.patientId}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        // Silently fail - download is optional enhancement
+      }
+    };
 
   if (isAuthInitializing || isLoading || !patient) {
     return (
@@ -257,31 +262,33 @@ Scan QR code or visit MedLink to verify.
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <PhoneCall className="w-4 h-4 text-red-600" />
-                <p className="text-sm font-medium text-gray-900">Emergency Contact</p>
+                <p className="text-sm font-medium text-gray-900">Emergency / Guardian</p>
               </div>
-              <p className="text-lg font-semibold text-gray-900">{displayData.emergencyContact}</p>
-            </div>
-
-            <div className="h-px bg-red-200 my-1" />
-
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Shield className="w-4 h-4 text-red-600" />
-                <p className="text-sm font-medium text-gray-900">Guardian Information</p>
-              </div>
-                <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-text-outline" />
-                  <p className="text-base font-medium text-gray-900">{displayData.guardianName}</p>
-                </div>
+              <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <PhoneCall className="w-4 h-4 text-text-outline" />
-                  <p className="text-base font-medium text-gray-900">{displayData.guardianMobile}</p>
+                  <p className="text-base font-medium text-gray-900">{displayData.emergencyContact}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-text-outline" />
-                  <p className="text-base font-medium text-gray-900">{displayData.guardianLocation}</p>
+                  <User className="w-4 h-4 text-text-outline" />
+                  <p className="text-base font-medium text-gray-900">{displayData.emergencyContactName}</p>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-text-outline" />
+                  <p className="text-base font-medium text-gray-900">{displayData.emergencyContactRelationship}</p>
+                </div>
+                {displayData.guardianMobile && (
+                  <div className="flex items-center gap-2">
+                    <PhoneCall className="w-4 h-4 text-text-outline" />
+                    <p className="text-base font-medium text-gray-900">Guardian: {displayData.guardianMobile}</p>
+                  </div>
+                )}
+                {displayData.guardianLocation && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-text-outline" />
+                    <p className="text-base font-medium text-gray-900">{displayData.guardianLocation}</p>
+                  </div>
+                )}
               </div>
             </div>
 

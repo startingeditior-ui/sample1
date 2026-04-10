@@ -38,7 +38,9 @@ export default function AccessPage() {
       const response = await accessAPI.getActiveAccess();
       setAccessList(response.data.data.accessRecords || []);
     } catch (error) {
-      console.error('Failed to fetch access records:', error);
+      // In production, use proper error reporting service
+      // console.error('Failed to fetch access records:', error);
+      setError('Failed to load access records. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -54,11 +56,13 @@ export default function AccessPage() {
         setIsRevoking(accessId);
         await accessAPI.revokeAccess(accessId);
         setAccessList(prev => prev.filter(a => a.id !== accessId));
-      } catch (error) {
-        console.error('Failed to revoke access:', error);
-      } finally {
-        setIsRevoking(null);
-      }
+    } catch (error) {
+      // In production, use proper error reporting service
+      // console.error('Failed to revoke access:', error);
+      setError('Failed to revoke access. Please try again.');
+    } finally {
+      setIsRevoking(null);
+    }
     }
   };
 
@@ -67,17 +71,19 @@ export default function AccessPage() {
     setShowBlockModal(true);
   };
 
-  const confirmBlock = async () => {
-    if (!selectedHospital) return;
-    try {
-      await accessAPI.blockHospital(selectedHospital.id);
-      setShowBlockModal(false);
-      setSelectedHospital(null);
-      fetchAccessRecords();
-    } catch (error: any) {
-      console.error('Failed to block hospital:', error);
-    }
-  };
+    const confirmBlock = async () => {
+      if (!selectedHospital) return;
+      try {
+        await accessAPI.blockHospital(selectedHospital.id);
+        setShowBlockModal(false);
+        setSelectedHospital(null);
+        fetchAccessRecords();
+      } catch (error: any) {
+        // In production, use proper error reporting service
+        // console.error('Failed to block hospital:', error);
+        setError('Failed to block hospital. Please try again.');
+      }
+    };
 
   if (isLoading) {
     return (

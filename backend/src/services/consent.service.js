@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { generateOTP, hashOTP, getOTPExpiry, getRemainingSeconds } = require('../utils/otp.utils');
 const { createAndEmitNotification } = require('../utils/socket.utils');
+const { sendOTP: sendOTPSMS } = require('../services/sms.service');
 
 const prisma = new PrismaClient();
 
@@ -64,7 +65,23 @@ const sendOTP = async (patientId, requestId) => {
     }
   });
 
-  // OTP generated and stored (will be sent via SMS)
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    include: { user: true }
+  });
+
+  if (patient?.user?.phone) {
+    const formattedPhone = patient.user.phone.startsWith('+')
+      ? patient.user.phone
+      : `+91${patient.user.phone.replace(/\D/g, '')}`;
+    try {
+      await sendOTPSMS(formattedPhone, otp);
+    } catch (smsError) {
+      console.error('[Consent] Failed to send OTP via SMS:', smsError.message);
+    }
+  } else {
+    console.log(`[Consent] OTP for consent request ${requestId}: ${otp}`);
+  }
 
   return {
     success: true,
@@ -182,17 +199,22 @@ const rejectConsent = async (patientId, requestId) => {
     }
   });
 
+  const doctor = await prisma.doctor.findUnique({ where: { id: request.doctorId } });
+  const hospital = await prisma.hospital.findUnique({ where: { id: request.hospitalId } });
+  const doctorName = doctor?.name || 'Unknown Doctor';
+  const hospitalName = hospital?.name || 'Unknown Hospital';
+
   await createAndEmitNotification(prisma, patientId, {
     type: 'CONSENT_REJECTED',
     title: 'Access Denied',
-    message: `You denied access request from ${request.hospitalId}`
+    message: `You denied access request from ${doctorName} at ${hospitalName}`
   });
 
   await createAuditLog({
     patientId,
     action: 'CONSENT_REJECTED',
     description: 'Patient rejected consent request',
-    metadata: { requestId }
+    metadata: { requestId, doctorName, hospitalName }
   });
 
   return { success: true, message: 'Consent rejected successfully' };

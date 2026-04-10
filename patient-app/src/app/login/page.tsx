@@ -248,7 +248,7 @@ function LoginForm() {
               </Button>
 
               <p className="text-center text-gray-400 text-xs mt-4">
-                Test: +91 98765 43210 or MLPR-20260001
+                For testing, use any phone number or patient ID
               </p>
             </form>
           )}

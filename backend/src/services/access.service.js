@@ -218,7 +218,8 @@ const createAuditLog = async ({ patientId, action, description, metadata }) => {
       }
     });
   } catch (error) {
-    console.error('Failed to create audit log:', error);
+    // In production, use proper logger
+    // console.error('Failed to create audit log:', error);
   }
 };
 

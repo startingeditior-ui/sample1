@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -44,6 +44,7 @@ apiClient.interceptors.response.use(
       const errorCode = error.response?.data?.error;
 
       if (errorCode === 'Token has expired' || errorCode === 'TOKEN_EXPIRED') {
+        // Prevent multiple concurrent refresh attempts
         if (isRefreshing) {
           return new Promise((resolve) => {
             subscribeTokenRefresh((token: string) => {
@@ -151,13 +152,29 @@ export const patientAPI = {
   getProfile: () => apiClient.get('/patient/profile'),
   updateProfile: (data: Record<string, unknown>) => apiClient.put('/patient/profile', data),
   getEmergencyData: () => apiClient.get('/patient/emergency-data'),
-  setPassword: (password: string) => apiClient.post('/patient/set-password', { password }),
+  setPassword: (patientId: string, password: string) => apiClient.post('/patient/set-password', { password }),
 };
 
 export const insuranceAPI = {
   getInsurance: () => apiClient.get('/patient/insurance'),
   saveInsurance: (data: Record<string, unknown>) => apiClient.put('/patient/insurance', data),
   deleteInsurance: () => apiClient.delete('/patient/insurance'),
+  getInsuranceSummary: () => apiClient.get('/patient/insurance/summary'),
+  getAvailments: () => apiClient.get('/patient/insurance-availments'),
+  addAvailment: (data: {
+    hospitalId?: string;
+    hospitalName?: string;
+    amountAvailed: number;
+    dateOfAvailment: string;
+    reason?: string;
+  }) => apiClient.post('/patient/insurance-availments', data),
+  uploadDocuments: async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('documents', file));
+    return apiClient.post('/patient/insurance/documents', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export const accessAPI = {
@@ -200,7 +217,13 @@ export const auditLogAPI = {
 };
 
 export const recordsAPI = {
-  getRecords: () => apiClient.get('/patient/records'),
+  getRecords: (params?: { search?: string; typeId?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.typeId) query.append('typeId', params.typeId);
+    const qs = query.toString();
+    return apiClient.get(`/patient/records${qs ? `?${qs}` : ''}`);
+  },
   getRecord: (id: string) => apiClient.get(`/patient/records/${id}`),
   getRecordTypes: () => apiClient.get('/patient/records/types'),
   addRecord: (data: {

@@ -51,8 +51,8 @@ model Patient {
   gender           String
   dob              DateTime
   bloodGroup       String
-  allergies        String[]
-  chronicDiseases  String[]
+  allergies        String
+  chronicDiseases  String
   emergencyContact String
   photoUrl         String?
   nurseId          String?
@@ -89,8 +89,27 @@ model Patient {
   otpSessions      OTPSession[]
   auditLogs        AuditLog[]
   emergencyAccessLogs EmergencyAccessLog[]
+  insuranceAvailments InsuranceAvailment[]
 
   @@map("patients")
+}
+
+model InsuranceAvailment {
+  id              String   @id @default(uuid())
+  patientId       String
+  hospitalId      String?
+  hospitalName    String?
+  amountAvailed   Float
+  dateOfAvailment DateTime
+  reason          String?
+  claimStatus     String   @default("PENDING")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@map("insurance_availments")
 }
 
 model Hospital {

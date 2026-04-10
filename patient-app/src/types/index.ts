@@ -1,10 +1,37 @@
+export interface InsurancePlan {
+  name: string;
+  coverage: string;
+  type: string;
+}
+
+export interface InsuranceAvailment {
+  id: string;
+  hospitalId: string | null;
+  hospitalName: string | null;
+  amountAvailed: number;
+  dateOfAvailment: string;
+  reason: string | null;
+  claimStatus: string;
+}
+
+export interface InsuranceSummary {
+  sumInsured: number;
+  totalAvailed: number;
+  pendingClaims: number;
+  remaining: number;
+}
+
 export interface InsuranceData {
   insuranceProvider?: string;
+  insurancePlan?: string;
   insuranceCustomerId?: string;
   insuranceType?: string;
   insuranceSupportNumber?: string;
   insuranceExpiryDate?: string;
   insuranceSumInsured?: string;
+  insuranceDocuments?: string[];
+  totalAvailed?: number;
+  insuranceAvailments?: InsuranceAvailment[];
 }
 
 export interface Patient {
@@ -69,7 +96,7 @@ export interface AccessRecord {
 export interface Notification {
   id: string;
   patientId: string;
-  type: 'access_granted' | 'access_revoked' | 'access_expired' | 'emergency_access';
+  type: 'access_granted' | 'access_revoked' | 'access_expired' | 'emergency_access' | 'LOGIN' | 'CONSENT_APPROVED' | 'CONSENT_REJECTED' | 'CONSENT_REQUEST' | 'ACCESS_REVOKED' | 'ACCESS_EXTENDED' | 'HOSPITAL_BLOCKED' | 'HOSPITAL_UNBLOCKED' | 'RECORD_ADDED' | 'PROFILE_UPDATED';
   title: string;
   message: string;
   doctorName?: string;

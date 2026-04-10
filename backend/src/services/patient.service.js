@@ -76,8 +76,8 @@ const getPatientProfile = async (patientId) => {
         emergencyContactRelationship: patient.emergencyContactRelationship,
         currentMedications: patient.medications?.join(', ') || '',
         pastSurgeries: patient.surgeries?.join(', ') || '',
-        allergies: patient.allergies || [],
-        chronicDiseases: patient.chronicDiseases || [],
+        allergies: patient.allergies ? patient.allergies.split(',').map(a => a.trim()).filter(Boolean) : [],
+        chronicDiseases: patient.chronicDiseases ? patient.chronicDiseases.split(',').map(c => c.trim()).filter(Boolean) : [],
         guardianName: patient.guardianName,
         guardianMobile: patient.guardianMobile,
         guardianLocation: patient.guardianLocation,
@@ -95,7 +95,7 @@ const getPatientProfile = async (patientId) => {
 
 const updatePatientProfile = async (patientId, data) => {
   const patient = await prisma.patient.findUnique({ where: { id: patientId } });
-  
+   
   if (!patient) {
     return { success: false, error: 'Patient not found', statusCode: 404 };
   }
@@ -103,7 +103,14 @@ const updatePatientProfile = async (patientId, data) => {
   const updateData = {};
   if (data.name) updateData.name = data.name;
   if (data.address) updateData.address = data.address;
+  if (data.gender) updateData.gender = data.gender;
   if (data.emergencyContact) updateData.emergencyContact = data.emergencyContact;
+  if (data.allergies) {
+    updateData.allergies = Array.isArray(data.allergies) ? data.allergies.join(',') : data.allergies;
+  }
+  if (data.chronicDiseases) {
+    updateData.chronicDiseases = Array.isArray(data.chronicDiseases) ? data.chronicDiseases.join(',') : data.chronicDiseases;
+  }
   if (data.medications) updateData.medications = data.medications.split(',').map(m => m.trim()).filter(Boolean);
   if (data.surgeries) updateData.surgeries = data.surgeries.split(',').map(s => s.trim()).filter(Boolean);
   if (data.photoUrl) updateData.photoUrl = data.photoUrl;
@@ -150,7 +157,8 @@ const getEmergencyData = async (patientId) => {
       medications: true,
       phone: true,
       guardianName: true,
-      guardianMobile: true
+      guardianMobile: true,
+      guardianLocation: true
     }
   });
 
@@ -165,15 +173,16 @@ const getEmergencyData = async (patientId) => {
       gender: patient.gender,
       dob: patient.dob ? patient.dob.toISOString().split('T')[0] : null,
       bloodGroup: patient.bloodGroup,
-      allergies: patient.allergies || [],
-      chronicDiseases: patient.chronicDiseases || [],
+      allergies: patient.allergies ? patient.allergies.split(',').map(a => a.trim()).filter(Boolean) : [],
+      chronicDiseases: patient.chronicDiseases ? patient.chronicDiseases.split(',').map(c => c.trim()).filter(Boolean) : [],
       emergencyContact: patient.emergencyContact,
       emergencyContactName: patient.emergencyContactName,
       emergencyContactRelationship: patient.emergencyContactRelationship,
       medications: patient.medications || [],
       phone: patient.phone,
       guardianName: patient.guardianName,
-      guardianMobile: patient.guardianMobile
+      guardianMobile: patient.guardianMobile,
+      guardianLocation: patient.guardianLocation
     }
   };
 };
@@ -321,7 +330,7 @@ const getMedicalRecords = async (patientId, search = null, recordTypeId = null) 
     type: record.recordType?.name || 'GENERAL',
     title: record.title,
     description: record.description,
-    date: record.recordDate?.toISOString() || record.createdAt.toISOString(),
+    date: record.date?.toISOString() || record.createdAt.toISOString(),
     fileUrl: record.fileUrl ? `/uploads/records/${record.fileUrl}` : null,
     uploadedBy: record.doctor?.name || record.hospital?.name || 'Unknown',
     uploadedAt: record.createdAt.toISOString(),
@@ -628,9 +637,15 @@ const updatePatientInsurance = async (patientId, data) => {
 
 const createAuditLog = async ({ patientId, action, description, metadata }) => {
   try {
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      select: { userId: true }
+    });
+    if (!patient) return;
+
     await prisma.auditLog.create({
       data: {
-        actorId: patientId,
+        actorId: patient.userId,
         actorRole: 'PATIENT',
         action,
         description,
@@ -638,7 +653,8 @@ const createAuditLog = async ({ patientId, action, description, metadata }) => {
       }
     });
   } catch (error) {
-    console.error('Failed to create audit log:', error);
+    // In production, use proper logger
+    // console.error('Failed to create audit log:', error);
   }
 };
 
@@ -653,20 +669,11 @@ const setPassword = async (patientId, newPassword) => {
       return { success: false, error: 'Patient not found', statusCode: 404 };
     }
 
-    if (newPassword.length < 8) {
-      return { success: false, error: 'Password must be at least 8 characters', statusCode: 400 };
-    }
-
-    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-      return { success: false, error: 'Password must contain uppercase, lowercase, and number', statusCode: 400 };
-    }
-
-    const bcrypt = require('bcryptjs');
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await prisma.user.update({
       where: { id: patient.userId },
-      data: { passwordHash }
+      data: { passwordHash: hashedPassword }
     });
 
     await createAuditLog({
@@ -679,6 +686,117 @@ const setPassword = async (patientId, newPassword) => {
   } catch (error) {
     console.error('Failed to set password:', error);
     return { success: false, error: 'Failed to set password', statusCode: 500 };
+  }
+};
+
+const getInsuranceAvailments = async (patientId) => {
+  try {
+    const availments = await prisma.insuranceAvailment.findMany({
+      where: { patientId },
+      orderBy: { dateOfAvailment: 'desc' }
+    });
+
+    return {
+      success: true,
+      data: {
+        availments: availments.map(a => ({
+          id: a.id,
+          hospitalId: a.hospitalId,
+          hospitalName: a.hospitalName,
+          amountAvailed: a.amountAvailed,
+          dateOfAvailment: a.dateOfAvailment.toISOString(),
+          reason: a.reason,
+          claimStatus: a.claimStatus
+        }))
+      }
+    };
+  } catch (error) {
+    console.error('Failed to get insurance availments:', error);
+    return { success: false, error: 'Failed to get insurance availments', statusCode: 500 };
+  }
+};
+
+const addInsuranceAvailment = async (patientId, data) => {
+  try {
+    const { hospitalId, hospitalName, amountAvailed, dateOfAvailment, reason } = data;
+
+    const availment = await prisma.insuranceAvailment.create({
+      data: {
+        patientId,
+        hospitalId: hospitalId || null,
+        hospitalName: hospitalName || null,
+        amountAvailed: parseFloat(amountAvailed),
+        dateOfAvailment: new Date(dateOfAvailment),
+        reason: reason || null,
+        claimStatus: 'PENDING'
+      }
+    });
+
+    await createAuditLog({
+      patientId,
+      action: 'INSURANCE_AVAILED',
+      description: 'Patient added insurance availment record',
+      metadata: { availmentId: availment.id, amount: amountAvailed }
+    });
+
+    return {
+      success: true,
+      message: 'Insurance availment added successfully',
+      data: {
+        availment: {
+          id: availment.id,
+          hospitalId: availment.hospitalId,
+          hospitalName: availment.hospitalName,
+          amountAvailed: availment.amountAvailed,
+          dateOfAvailment: availment.dateOfAvailment.toISOString(),
+          reason: availment.reason,
+          claimStatus: availment.claimStatus
+        }
+      }
+    };
+  } catch (error) {
+    console.error('Failed to add insurance availment:', error);
+    return { success: false, error: 'Failed to add insurance availment', statusCode: 500 };
+  }
+};
+
+const getInsuranceSummary = async (patientId) => {
+  try {
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      select: {
+        insuranceSumInsured: true,
+        insuranceAvailments: {
+          select: {
+            amountAvailed: true,
+            claimStatus: true
+          }
+        }
+      }
+    });
+
+    if (!patient) {
+      return { success: false, error: 'Patient not found', statusCode: 404 };
+    }
+
+    const totalAvailed = patient.insuranceAvailments
+      .filter(a => a.claimStatus === 'APPROVED')
+      .reduce((sum, a) => sum + a.amountAvailed, 0);
+
+    const pendingClaims = patient.insuranceAvailments.filter(a => a.claimStatus === 'PENDING').length;
+
+    return {
+      success: true,
+      data: {
+        sumInsured: patient.insuranceSumInsured ? parseFloat(patient.insuranceSumInsured) : 0,
+        totalAvailed,
+        pendingClaims,
+        remaining: (patient.insuranceSumInsured ? parseFloat(patient.insuranceSumInsured) : 0) - totalAvailed
+      }
+    };
+  } catch (error) {
+    console.error('Failed to get insurance summary:', error);
+    return { success: false, error: 'Failed to get insurance summary', statusCode: 500 };
   }
 };
 
@@ -699,5 +817,8 @@ module.exports = {
   revokeOTPSession,
   getAuditLog,
   getQRData,
-  setPassword
+  setPassword,
+  getInsuranceAvailments,
+  addInsuranceAvailment,
+  getInsuranceSummary
 };

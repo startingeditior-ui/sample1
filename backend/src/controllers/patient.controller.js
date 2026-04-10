@@ -15,7 +15,10 @@ const {
   revokeOTPSession,
   getAuditLog,
   getQRData,
-  setPassword
+  setPassword,
+  getInsuranceAvailments,
+  addInsuranceAvailment,
+  getInsuranceSummary
 } = require('../services/patient.service');
 
 const getProfile = async (req, res, next) => {
@@ -297,6 +300,56 @@ const updateInsurance = async (req, res, next) => {
   }
 };
 
+const getInsuranceAvailmentsController = async (req, res, next) => {
+  try {
+    const patientId = req.user.patientId;
+    const result = await getInsuranceAvailments(patientId);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const addInsuranceAvailmentController = async (req, res, next) => {
+  try {
+    const patientId = req.user.patientId;
+    const { hospitalId, hospitalName, amountAvailed, dateOfAvailment, reason } = req.body;
+
+    if (!amountAvailed || !dateOfAvailment) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Amount and date are required' 
+      });
+    }
+
+    const result = await addInsuranceAvailment(patientId, {
+      hospitalId,
+      hospitalName,
+      amountAvailed,
+      dateOfAvailment,
+      reason
+    });
+
+    if (!result.success) {
+      return res.status(result.statusCode).json(result);
+    }
+
+    return res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getInsuranceSummaryController = async (req, res, next) => {
+  try {
+    const patientId = req.user.patientId;
+    const result = await getInsuranceSummary(patientId);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -314,5 +367,8 @@ module.exports = {
   revokeOTP,
   listAuditLogs,
   getQR,
-  setPasswordController
+  setPasswordController,
+  getInsuranceAvailments: getInsuranceAvailmentsController,
+  addInsuranceAvailment: addInsuranceAvailmentController,
+  getInsuranceSummary: getInsuranceSummaryController
 };

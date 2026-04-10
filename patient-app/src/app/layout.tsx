@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { TitleUpdater } from "@/components/TitleUpdater";
 import { FcmProvider } from "@/components/FcmProvider";
 import { ToastProvider } from "@/components/ToastProvider";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -37,9 +38,11 @@ export default function RootLayout({
           <ToastProvider>
             <AuthProvider>
               <FcmProvider>
-                <AppLayout>
-                  {children}
-                </AppLayout>
+                <ErrorBoundary>
+                  <AppLayout>
+                    {children}
+                  </AppLayout>
+                </ErrorBoundary>
               </FcmProvider>
             </AuthProvider>
           </ToastProvider>

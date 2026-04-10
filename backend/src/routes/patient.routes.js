@@ -1,6 +1,7 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth.middleware');
 const { otpLimiter, apiLimiter } = require('../middleware/rateLimiter.middleware');
+const { validate, patientIdValidation, passwordValidation } = require('../middleware/validation.middleware');
 const {
   getProfile,
   updateProfile,
@@ -18,7 +19,10 @@ const {
   revokeOTP,
   listAuditLogs,
   getQR,
-  setPasswordController
+  setPasswordController,
+  getInsuranceAvailments,
+  addInsuranceAvailment,
+  getInsuranceSummary
 } = require('../controllers/patient.controller');
 
 const router = express.Router();
@@ -31,6 +35,12 @@ router.get('/insurance', authMiddleware, getInsurance);
 
 router.put('/insurance', authMiddleware, updateInsurance);
 
+router.get('/insurance/summary', authMiddleware, getInsuranceSummary);
+
+router.get('/insurance-availments', authMiddleware, getInsuranceAvailments);
+
+router.post('/insurance-availments', authMiddleware, addInsuranceAvailment);
+
 router.get('/emergency-data', authMiddleware, getEmergencyData);
 
 router.get('/records', authMiddleware, listRecords);
@@ -41,9 +51,9 @@ router.get('/records/:recordId', authMiddleware, getRecord);
 
 router.post('/records', authMiddleware, addRecord);
 
-router.put('/records/:recordId', authMiddleware, updateRecord);
+router.put('/records/:recordId', authMiddleware, patientIdValidation, validate, updateRecord);
 
-router.delete('/records/:recordId', authMiddleware, deleteRecord);
+router.delete('/records/:recordId', authMiddleware, patientIdValidation, validate, deleteRecord);
 
 router.post('/otp/generate', authMiddleware, otpLimiter, generateOTP);
 
@@ -55,6 +65,6 @@ router.get('/audit-log', authMiddleware, listAuditLogs);
 
 router.get('/qr', authMiddleware, getQR);
 
-router.post('/set-password', authMiddleware, setPasswordController);
+router.post('/set-password', authMiddleware, passwordValidation, validate, setPasswordController);
 
 module.exports = router;

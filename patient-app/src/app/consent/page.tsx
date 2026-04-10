@@ -42,11 +42,13 @@ export default function ConsentPage() {
         setStep('detail');
       }
     } catch (error) {
-      console.error('Failed to fetch pending requests:', error);
+      // In production, use proper error reporting service
+      // console.error('Failed to fetch pending requests:', error);
+      setError('Failed to load consent requests. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedRequest]);
+  }, []);
 
   useEffect(() => {
     fetchPendingRequests();
@@ -67,7 +69,7 @@ export default function ConsentPage() {
     setError('');
     setIsSendingOtp(true);
     try {
-      await consentAPI.sendOTP();
+      await consentAPI.sendOTP(selectedRequest!.id);
       setOtpSent(true);
       setStep('otp');
     } catch {
@@ -102,15 +104,25 @@ export default function ConsentPage() {
   };
 
   const handleReject = async () => {
+    if (!selectedRequest) return;
+    setError('');
+    
     try {
-      await consentAPI.rejectConsent(selectedRequest!.id);
-      alert('Access request rejected');
-      setOtp('');
-      setStep('list');
-      setSelectedRequest(null);
-      fetchPendingRequests();
-    } catch (error) {
-      console.error('Failed to reject consent:', error);
+      setIsVerifying(true);
+      const result = await consentAPI.rejectConsent(selectedRequest.id);
+      
+      if (result.data.success) {
+        setSelectedRequest(null);
+        fetchPendingRequests();
+      } else {
+        setError(result.data.error || 'Failed to reject consent');
+      }
+    } catch (error: any) {
+      // In production, use proper error reporting service
+      // console.error('Failed to reject consent:', error);
+      setError(error.response?.data?.error || 'Failed to reject consent. Please try again.');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -222,7 +234,7 @@ export default function ConsentPage() {
             {/* Duration grid */}
             <div>
               <p className="text-sm font-semibold text-gray-800 mb-3">Access Duration</p>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {accessDurations.map((d) => (
                   <button
                     key={d.value}

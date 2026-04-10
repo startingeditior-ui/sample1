@@ -46,7 +46,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hideBottomNav, setHideBottomNav] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
-  const { patient, logout, isAuthInitializing, authError, clearAuthError } = useAuth();
+  const { patient, logout, isAuthInitializing, authError } = useAuth();
 
   useEffect(() => {
     if (authError) {

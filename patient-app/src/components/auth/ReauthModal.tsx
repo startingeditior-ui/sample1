@@ -171,7 +171,7 @@ export function ReauthModal({ isOpen, onVerify, onLogout, isLoading, error, onSu
                   <div className="flex gap-3 mt-6">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="outlined"
                       onClick={handleLogout}
                       className="flex-1"
                       disabled={isLoading}
@@ -246,7 +246,7 @@ export function ReauthModal({ isOpen, onVerify, onLogout, isLoading, error, onSu
                       <div className="flex gap-3 mt-6">
                         <Button
                           type="button"
-                          variant="outline"
+variant="outlined"
                           onClick={handleLogout}
                           className="flex-1"
                           disabled={otpLoading}

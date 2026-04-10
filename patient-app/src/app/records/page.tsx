@@ -277,7 +277,7 @@ export default function RecordsPage() {
         <p className="text-gray-500 text-sm mt-0.5">Your medical history organized by hospital</p>
       </motion.div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -285,7 +285,7 @@ export default function RecordsPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500">Hospitals</p>
-              <p className="text-2xl font-bold text-emerald-600">{stats.hospitals}</p>
+              <p className="text-xl sm:text-2xl font-bold text-emerald-600">{stats.hospitals}</p>
             </div>
           </div>
         </div>
@@ -297,7 +297,7 @@ export default function RecordsPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500">Total Records</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.totalRecords}</p>
+              <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats.totalRecords}</p>
             </div>
           </div>
         </div>
@@ -309,7 +309,7 @@ export default function RecordsPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500">Latest Record</p>
-              <p className="text-base font-bold text-purple-600 leading-tight">{stats.latestDate}</p>
+              <p className="text-sm sm:text-base font-bold text-purple-600 leading-tight">{stats.latestDate}</p>
             </div>
           </div>
         </div>
